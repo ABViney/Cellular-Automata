@@ -1,6 +1,14 @@
-import { Application, Container, FederatedPointerEvent, Graphics, ParticleContainer, Point, Sprite } from "pixi.js";
-import { Group, Tween } from "tweedle.js";
+import { Application, Container, FederatedPointerEvent, Graphics, ParticleContainer, Point, Sprite, Texture } from "pixi.js";
+import { Easing, Group, Tween } from "tweedle.js";
+import { Cell, CellMap } from "../CellMap";
 // import { Cell, CellMap } from "./CellMap";
+
+interface TextureDict {
+  background: Texture;
+  cell: Texture;
+  vertical_line: Texture;
+  horizontal_line: Texture;
+};
 
 export class Grid extends Container {
 
@@ -20,6 +28,7 @@ export class Grid extends Container {
   /** Pixel sizes */
   public cell_size = 24;
   public line_size = 1;
+  public line_catchup = 50; // ms
 
   /** Ratio of minor to major axis lines */
   public interval = 5;
@@ -60,21 +69,21 @@ export class Grid extends Container {
     this.renderer = app.renderer;
     this.view = app.screen;
 
+    this._generateAssets();
+    this._emplaceAssets({x: this.view.width/2, y: this.view.height/2} as Point);
     
-    generateGrid();
-    
-    emplaceGridLines();
+    app.ticker.add((dt) => {
+      Group.shared.update(dt, true);
+    })
 
+    this.on("added", ()=> {
 
-    grid.addChild(vertical_lines, horizontal_lines);
+    })
 
-    
-    this.addChild(grid);
-    
-    grid.interactive = true;
-    grid.cursor = 'pointer';
-    grid.on('pointerdown', this._onPointerDown, grid);
-    grid.on('pointerup', this._onPointerUp, grid);
+    this.interactive = true;
+    this.cursor = 'pointer';
+    this.on('pointerdown', this._onPointerDown);
+    this.on('pointerup', this._onPointerUp);
 
     // TODO: Place this into mousewheel listener
     // this.event_info.snapback = (this.cell_size+1) * this.interval;
@@ -86,7 +95,6 @@ export class Grid extends Container {
       case 2: // Begin pan
         event_info.panning = true;
         event_info.selecting = false;
-        e.client.copyTo(event_info.pan_from as Point);
         this.on('pointermove', this._Pan);
         this.cursor = 'grabbing';
         break;
@@ -121,20 +129,6 @@ export class Grid extends Container {
   }
 
   _Pan(e: FederatedPointerEvent) {
-    console.log(this);
-    const snapback = this.event_info.snapback;
-    const movement = e.movement;
-    if ( e.movement.x ) {
-      const vertical_lines = this.children[1];
-      vertical_lines.x += movement.x;
-      if ( Math.abs(vertical_lines.x) > snapback )
-        vertical_lines.x -= Math.sign(vertical_lines.x) * snapback;
-    }
-    if ( e.movement.y ) {
-      const horizontal_lines = this.children[2];
-
-    }
-
   }
 
   _onPointerUp(e: FederatedPointerEvent) {
@@ -145,17 +139,22 @@ export class Grid extends Container {
     
   }
 
-
-  _generateGridTextures() {
+  _generateTextures(): TextureDict {
     const view = this.view;
     const renderer = this.renderer;
+    const color = this.color;
 
     // Create graphics elements
-    const background_template = new Graphics();
-    background_template.beginFill(this.color.background, 1);
-    background_template.drawRect(0, 0, view.width, view.height);
-    const background_texture = renderer.generateTexture(background_template);
-    background_template.destroy();
+    
+    const rectHelper = (color:number, width:number, height?:number) => {
+      const g = new Graphics();
+      g.beginFill(color, 1);
+      g.drawRect(0, 0, width, height || width);
+      g.endFill();
+      const texture = renderer.generateTexture(g);
+      g.destroy();
+      return texture;
+    };
 
     const lineHelper = (x:number, y:number) => {
       const g = new Graphics();
@@ -167,117 +166,265 @@ export class Grid extends Container {
       return texture;
     };
 
-    this.textures =  {
-      background: background_texture,
+    return {
+      background: rectHelper(color.background, view.width, view.height),
+      cell: rectHelper(color.cell, 100),
       vertical_line: lineHelper(0, view.height),
       horizontal_line: lineHelper(view.width, 0)
     };
   }
 
-  /**
-   * @type {object}
-   * @property 
-   */
-  public textures: object;
-
   _calculateCellSize(scalar?: number) {
-    return this.cell_size * this.line_size * (scalar || this.zoom.actual)
+    return this.cell_size * (scalar || this.zoom.actual)
   }
 
-  _calculateLineNeed(size: number, scalar?: number): number {
-    const div = Math.floor(size / this._calculateCellSize(scalar));
+  /**
+   * @param size in pixels of visible space
+   * @param scalar optional scaling of cell size
+   * @returns the amount of lines needed to fill the screen once past the edge
+   *          + the difference of its remainder against the interval
+   */
+  _measureLineNeed(size: number, scalar?: number): number {
+    const div = Math.ceil(size / (this._calculateCellSize(scalar) + this.line_size));
     const rem = this.interval - (div % this.interval);
     return div + rem;
   };
 
   _vertical_lines = new Array<Sprite>();
-  _vertical_line_interpolation = new Group();
+  _vertical_axes = new Array<Pick<Sprite,"x">>();
+  _vertical_interpolation = new Array<Tween<Sprite>>();
   _horizontal_lines = new Array<Sprite>();
-  _horizontal_line_interpolation = new Group();
+  _horizontal_axes = new Array<Pick<Sprite,"y">>();
+  _horizontal_interpolation = new Array<Tween<Sprite>>();
 
   _generateAssets() {
-    const textures = this._generateGridTextures();
+    const textures = this._generateTextures();
     
-    // clear containers
+    // clear this container
     this.children.forEach((obj) => obj.destroy());
 
+    // new resized background, new line containers
     this.addChild(Sprite.from(textures.background), new ParticleContainer(), new ParticleContainer());
-    this._vertical_lines.length = 0;
-    this._vertical_interpolation.removeAll();
-    this._horizontal_lines.length = 0;
-    this._horizontal_interpolation.removeAll();
 
-    const number_of_vertical_lines = this._calculateLineNeed(this.view.width, this.zoom.min);
-    for (let i = 0; i < number_of_vertical_lines; i++) {
+    // All lines that can be displayed are created at this time.
+    const max_vertical_lines = this._measureLineNeed(this.view.width, this.zoom.min);
+    const max_horizontal_lines = this._measureLineNeed(this.view.height, this.zoom.min);
+    // Adjacent arrays for indexing sprite, tweens, and destination references in tandem
+    this._vertical_lines.length
+      = this._vertical_axes.length
+        = this._vertical_interpolation.length
+          = max_vertical_lines;
+    this._horizontal_lines.length
+      = this._horizontal_interpolation.length
+        = this._horizontal_axes.length
+          = max_horizontal_lines;
+
+    for (let i = 0; i < max_vertical_lines; i++) {
       const line = Sprite.from(textures.vertical_line);
       if ( i % this.interval ) line.tint = this.color.line_minor;
-      this._vertical_interpolation.add(new Tween(line));
-      this._vertical_lines.push(line);
-      line.visible = false;
+      // Sprite array
+      this._vertical_lines[i] = line;
+      // An object with similar properties to Sprite is instantiated
+      // to act as a handle for the destination of this line's Tween.
+      const destination = this._vertical_axes[i] = {x: 0};
+      // This Tween will, when active, attempt to match the line's x property
+      // to the x property stored in properties
+      this._vertical_interpolation[i] =
+        new Tween(line)
+          // Once started keep going
+          .repeat(Infinity)
+          .onRepeat((line: Sprite, rcount: number, tween: Tween<Sprite>) => {
+            const panning = this.event_info.panning;
+            // If the grid is panning, the destination is likely to change,
+            // so might as well keep active. Otherwise, if the destination has been 
+            // changed, move there.
+            if ( panning || line.x !== destination.x ) {
+              tween.restart();
+            }
+            else {
+              // Nothing to do so stop, will be restarted by another event.
+              tween.stop();
+            }
+          })
+          .onStart((line: Sprite, tween: Tween<Sprite>) => {
+            // Set the start location 
+            tween.from({x: line.x}).to({x: destination.x}, this.line_catchup);
+          }
+        );
+      // First draw originates from the center
+      line.x = this.view.width/2;
     }
-    const number_of_horizontal_lines = this._calculateLineNeed(this.view.height, this.zoom.min);
-    for(let i = 0; i < number_of_horizontal_lines; i++) {
-      const line = Sprite.from(textures.vertical_line);
+    for(let i = 0; i < max_horizontal_lines; i++) {
+      const line = Sprite.from(textures.horizontal_line);
       if ( i % this.interval ) line.tint = this.color.line_minor;
-      this._vertical_interpolation.add(new Tween(line));
-      this._vertical_lines.push(line);
-      line.visible = false;
+      this._horizontal_lines[i] = line;
+      const destination = this._horizontal_axes[i] = {y: 0};
+      this._horizontal_interpolation[i] =
+        new Tween(line)
+        .repeat(Infinity)
+        .onRepeat((line: Sprite, rcount: number, tween: Tween<Sprite>) => {
+          const panning = this.event_info.panning;
+          if ( panning || line.y !== destination.y ) {
+            tween.restart();
+          }
+          else {
+            tween.stop();
+          }
+        })
+        .onStart((line: Sprite, tween: Tween<Sprite>) => {
+          tween.from({y: line.y}).to({y: destination.y}, this.line_catchup);
+        }
+      );
+      line.y = this.view.height/2;
     }
   }
+  
+  _emplaceAssets(origin: Point|undefined) {
+    this._emplaceLines(origin);
+    // this._emplaceCells(origin);
+  }
 
-  _emplaceLines(origin: Point) {
-    // Constants
-    const gap = this.cell_size + this.line_size * this.zoom.current;
-    const vertical_line_need = this._calculateLineNeed(this.view.width, this.zoom.current);
-    const horizontal_line_need = this._calculateLineNeed(this.view.height, this.zoom.current);
+  /**
+   * Adjust the amount of sprites present in this container
+   * and modify their position to reflect the cell size.
+   * @param focal the point at which transformations should occur
+   *              If left blank defaults to screen center
+   */
+  _emplaceLines(focal?: Pick<Point,"x"|"y">) {
+    // This initially occurs for grid generation, but also happens
+    // whenever the scale of the scene changes -- i.e. zooming in or out
+    if (! focal ) {
+      // In the case its an initial placement we'll use the screen center
+      focal = {
+        x: this.view.width/2,
+        y: this.view.height/2
+      } as Point;
+    }
+
     // Containers
     const vertical_lines = this.children[1] as ParticleContainer;
     const horizontal_lines = this.children[2] as ParticleContainer;
-    // Shorthands 
-    // Manage amount of displayable assets, returns children remaining in the container
-    const manageContainer = (container: Container, reservoir: Sprite[], amount: number) => {
-      if ( container.children.length < amount )
+
+    // Manage amount of displayed assets, returns Container's children property
+    const manageContainer = (container: Container, reservoir: Sprite[], needed_amount: number): Array<Sprite> => {
+
+      const current_amount = container.children.length;
+      if ( current_amount < needed_amount ) {
+        // Not enough lines, get the indices residing in the difference
         container.addChild(
-          ...reservoir.slice(container.children.length, amount)
+          ...reservoir.slice(current_amount, needed_amount)
         );
-      else if ( container.children.length > amount )
-          container.removeChildren(amount).forEach(obj => obj.visible = false)
-      return container.children;
+      }
+      else if ( current_amount > needed_amount ) {
+        // Too many lines, remove the excess
+        container.removeChildren(needed_amount)
+          // and mark those removed as invalidly positioned
+          .forEach(obj => obj.visible = false)
+
+      }
+      
+      return container.children as Array<Sprite>;
     }
-    const nearest = (obj: any, property: string, comparison: number) => {
-      return Math.abs(obj[property] - comparison) < gap;
-    };
-    // Set containers to needed amount, store index of starting position
-    const v_lines = manageContainer(vertical_lines, this._vertical_lines, vertical_line_need)
-    const v_start = v_lines.findIndex(line => line.visible && nearest(line, "x", origin.x));
-    const h_lines = manageContainer(horizontal_lines, this._horizontal_lines, horizontal_line_need)
-    const h_start = h_lines.findIndex(line => line.visible && nearest(line, "y", origin.y));
-    // Describing boundaries for wrapping
+    
+    
+    // Predicate callback to find the first line within a radius
+    const nearest = (
+      obj: Pick<Point,"x"|"y">,
+      comparison: Pick<Point,"x"|"y">,
+      property: "x"|"y",
+      search_radius: number
+    ) => Math.abs(obj[property] - comparison[property]) < search_radius
+
+    // Total lines that will be in each container
+    const vertical_line_need = this._measureLineNeed(this.view.width, this.zoom.target);
+    const horizontal_line_need = this._measureLineNeed(this.view.height, this.zoom.target);
+
+    //The first line to be modified is decided as the closest line to the focal point on screen.
+    const radius = this._calculateCellSize(this.zoom.actual)/2;
+
+    // The transformation of already present lines is dependent on the transformation of the first
+    // line modified. If no lines have been transformed yet, index is set to 0.
+    const v_start = Math.max(
+      manageContainer(vertical_lines, this._vertical_lines, vertical_line_need)
+      .findIndex(line => line.visible && nearest(line, focal!, "x", radius)),
+      0
+    );
+    const h_start = Math.max(
+      manageContainer(horizontal_lines, this._horizontal_lines, horizontal_line_need)
+      .findIndex(line => line.visible && nearest(line, focal!, "y", radius)),
+      0
+    );
+
+    // The distance between each line origin point in this setup
+    const gap = this._calculateCellSize(this.zoom.target) + this.line_size;
+    // Store the distance each axis spans
     const lateral_range = vertical_line_need * gap;
-    const vertical_range = vertical_line_need * gap;
+    const vertical_range = horizontal_line_need * gap;
+
+    // Boundaries describe edges that lines should not exist past. Boundaries are
+    // decided by taking the difference and sum between the range each axis spans and
+    // the dimension of the visible screen corresponding to it. The average of these
+    // two resolve edges that centers the visible screen within the range.
+    const lb = this.grid.bound.left = Math.floor((this.view.width - lateral_range) / 2);
+    const rb = this.grid.bound.right = Math.floor((this.view.width + lateral_range) / 2);
+    const ub = this.grid.bound.up = Math.floor((this.view.height- vertical_range) / 2);
+    const db = this.grid.bound.down = Math.floor((this.view.height + vertical_range) / 2);
 
     // Wrap a value between two numbers, inclusive [e.g wrap(10, 3, 7) == 5]
     const wrap = (val: number, min: number, max: number): number => val % (max+1-min) + min;
-    // Boundary resets
-    const lb = this.grid.bound.left = Math.floor(this.view.width/2 - vertical_range / 2);
-    const rb = this.grid.bound.right = Math.floor(this.view.width/2 + vertical_range / 2);
-    const ub = this.grid.bound.up = Math.floor(this.view.height/2 - lateral_range / 2);
-    const db = this.grid.bound.down = Math.floor(this.view.height/2 + lateral_range / 2);
-    // The starting position is that of the closest line to the origin
-    let x = vertical_lines.children[v_start].x 
-              // Shifted by the difference scaled by the zoom modifier
-            - (vertical_lines.children[v_start].x - origin.x) * this.zoom.target
-    for( const line of [...v_lines.slice(v_start), ...v_lines.slice(0, v_start)] ) {
+    let next_x =
+      // The starting position is that of the closest line to the origin
+      vertical_lines.children[v_start].x
+      // Shifted by the difference from the focal point
+      - (vertical_lines.children[v_start].x - focal.x)
+      // scaled by the current target zoom
+      * this.zoom.target
+      // pushed forward by the preceeding boundary edge
+      - lb;
+    for (let offset = v_start; offset < v_start + vertical_line_need; offset++) {
+      // The current index is extrapolated by wrapping the offset
+      const i = wrap(offset, 0, vertical_line_need-1);
+
+      const line = this._vertical_lines[i];
+      // Wrapped between the bounds
+      const destination = this._vertical_axes[i].x = wrap(next_x, lb, rb);
+
       if (! line.visible ) {
         line.visible = true;
+        // If the line was just added then its initial position
+        // is set to the nearest offscreen boundary to its next position
+        line.x = Math.round((destination - lb) / lateral_range)
+                ? rb // 1
+                : lb // 0
       }
-      line.x = Math.round(x/this.view.width)
-              ? this.grid.bound.right
-              : this.grid.bound.left;
-      x += gap;
-      if ( x > this.grid.bound.right) x -= lateral_range
+      // Setting the next position for this line
+
+      // A callback inside of the tween will automatically refresh
+      // the destination target and duration
+      this._vertical_interpolation[i].start();
+
+      // The next x position is incremented by the current gap size
+      next_x += gap;
     }
-    
-    
+    // Same is done for horizontal lines
+    let next_y = horizontal_lines.children[h_start].y
+            - (horizontal_lines.children[h_start].y - focal.y)
+            * this.zoom.target
+            - ub;
+    for (let offset = h_start; offset < h_start + horizontal_line_need; offset++) {
+      const i = wrap(offset, 0, horizontal_line_need-1);
+
+      const line = this._horizontal_lines[i];
+      const destination = this._horizontal_axes[i].y = wrap(next_y, ub, db);
+
+      if (! line.visible ) {
+        line.visible = true;
+        line.y = Math.round((destination - ub) / vertical_range)
+                ? db // 1
+                : ub // 0
+      }
+      this._horizontal_interpolation[i].start();
+      next_y += gap;
+    }
   }
 }
