@@ -1,4 +1,4 @@
-import { Application, Container, FederatedPointerEvent, Graphics, ParticleContainer, Point, Sprite, Texture } from "pixi.js";
+import { Application, Container, FederatedPointerEvent, Graphics, ParticleContainer, Point, RenderTexture, Sprite, Texture } from "pixi.js";
 import { Easing, Group, Tween } from "tweedle.js";
 import { Cell, CellMap } from "../CellMap";
 // import { Cell, CellMap } from "./CellMap";
@@ -12,44 +12,57 @@ interface TextureDict {
 
 export class Grid extends Container {
 
-  public color = {
-    background: 0x222222,
-    line_major: 0xffffff,
-    line_minor: 0x888888,
-    cell: 0xffff00
-  };
-
   /** @type {Renderer} */
   public renderer;
 
   /** @type {Rectangle} */
   public view;
 
-  /** Pixel sizes */
-  public cell_size = 24;
-  public line_size = 1;
-  public line_catchup = 50; // ms
+  public textures: TextureDict;
 
-  /** Ratio of minor to major axis lines */
-  public interval = 5;
+  public cell = {
+    default_size: 25, // Static value, scaled by zoom to get size
+    size: 25,
+
+    color: 0xffff00,
+  };
+
+  public line = {
+    size: 1, // px
+
+    interval: 5,/** Ratio of minor to major axis lines */
+    lag: 10, // ms
+
+    major: 0xffffff,
+    minor: 0x888888,
+  };
   
   /** Grid info */
   public grid = {
+    background: 0x222222,
     bound: {
-      up: 0,
-      down: 0,
-      left: 0,
-      right:0
+      x: {
+        lower: 0,
+        upper: 1
+      },
+      y: {
+        lower: 0,
+        upper: 1
+      }
     },
-    offset: {x: 0, y: 0}
-  } 
+    // Viewing Position
+    offset: {
+      x: 0,
+      y: 0
+    }
+  };
   
   /** Zoom (scale) directives */
   public zoom = {
     min: 0.1,
     max: 5.0,
     target: 1.0,
-    actual: 1.0
+    actual: 5.0
   };
 
   /** Event tracking */
@@ -66,30 +79,33 @@ export class Grid extends Container {
   constructor(app: Application) {
     super();
 
-    this.renderer = app.renderer;
-    this.view = app.screen;
-
-    this._generateAssets();
-    this._emplaceAssets({x: this.view.width/2, y: this.view.height/2} as Point);
+    const renderer = this.renderer = app.renderer;
+    const view = this.view = app.screen;``
+    
+    // Not sure how to tell typescript this is okay
+    this.textures = this._generateTextures();
+    this._createGrid();
+    this._setLines();
     
     app.ticker.add((dt) => {
-      Group.shared.update(dt, true);
+      this._setLines();
     })
-
     this.on("added", ()=> {
-
+      
+      setTimeout(() => {
+        
+        
+      }, 4000);
     })
 
     this.interactive = true;
     this.cursor = 'pointer';
     this.on('pointerdown', this._onPointerDown);
     this.on('pointerup', this._onPointerUp);
-
-    // TODO: Place this into mousewheel listener
-    // this.event_info.snapback = (this.cell_size+1) * this.interval;
   }
 
   _onPointerDown(e: FederatedPointerEvent) {
+    console.log(e);
     const event_info = this.event_info;
     switch (e.button) {
       case 2: // Begin pan
@@ -98,37 +114,15 @@ export class Grid extends Container {
         this.on('pointermove', this._Pan);
         this.cursor = 'grabbing';
         break;
-  //     case 1: // Begin selection
-  //         if ( panning ) return;
-  //         selecting = true;
-  //         current_selection.clear();
-  //         this.hoverCursor = 'cell';
-  //         canvas.setCursor('cell');
-  //         const reciever = canvas._searchPossibleTargets(
-  //             cell.all.getObjects(),
-  //             canvas.getPointer(e, true)
-  //         );
-  //         if ( reciever ) reciever.fire('mousedown');
-  //         break;
-  //     case 2: // Reset Camera
-  //         if ( selecting || panning ) return;
-  //         grid_offset_x = 0;
-  //         grid_offset_y = 0;
-
-  //         cell.all.left = cell.all.top = 0;
-  //         cell.all.scale(zoom ** -1)
-  //         line.horizontal.left = line.horizontal.top = 0;
-  //         line.horizontal.scaleX = 1;
-  //         line.vertical.left = line.vertical.top = 0;
-
-  //         camera.x = 0;
-  //         camera.y = 0;
-  //         zoom = 1;
-  //         // need to redraw cells
-    }
+    } console.log(this.grid.offset)
   }
 
   _Pan(e: FederatedPointerEvent) {
+    const offset = this.grid.offset;
+    const dx = e.movement.x;
+    const dy = e.movement.y;
+    offset.x += dx;
+    offset.y += dy;
   }
 
   _onPointerUp(e: FederatedPointerEvent) {
@@ -139,13 +133,13 @@ export class Grid extends Container {
     
   }
 
-  _generateTextures(): TextureDict {
+  _generateTextures() {
     const view = this.view;
     const renderer = this.renderer;
-    const color = this.color;
+    const grid = this.grid;
+    const line = this.line;
+    const cell = this.cell;
 
-    // Create graphics elements
-    
     const rectHelper = (color:number, width:number, height?:number) => {
       const g = new Graphics();
       g.beginFill(color, 1);
@@ -158,7 +152,7 @@ export class Grid extends Container {
 
     const lineHelper = (x:number, y:number) => {
       const g = new Graphics();
-      g.lineStyle({width: this.line_size, color: this.color.line_major, alpha: 1});
+      g.lineStyle({width: line.size, color: line.major, alpha: 1});
       g.lineTo(x, y);
       const texture = renderer.generateTexture(g);
       g.destroy();
@@ -166,123 +160,304 @@ export class Grid extends Container {
       return texture;
     };
 
-    return {
-      background: rectHelper(color.background, view.width, view.height),
-      cell: rectHelper(color.cell, 100),
+
+    return this.textures = {
+      // Background covers the entire visible screen
+      // Also acts as a backboard for pointer events
+      background: rectHelper(grid.background, view.width, view.height),
+      // Cells size to whatever the cell size is scaled by zoom
+      cell: rectHelper(cell.color, 100),
+      // Lines are fitted to the screen's dimensions
+      // A resizing of the canvas entitles a redrawing of these lines
       vertical_line: lineHelper(0, view.height),
       horizontal_line: lineHelper(view.width, 0)
     };
   }
 
+  // Wrap a number between two points
+  // Inclusive exclusive
+  // _wrap(val:number, min:number, max:number):number {
+  //   if( val < 0 ) return -this._wrap(-val, -max, -min);
+  //   return val % (max-min) + min;
+  // }
+  
+  // Get cell size at current scale or at provided scale
   _calculateCellSize(scalar?: number) {
-    return this.cell_size * (scalar || this.zoom.actual)
+    const size = this.cell.default_size * (scalar || this.zoom.actual);
+    if (! scalar ) this.cell.size = size;
+    return size;
   }
 
   /**
    * @param size in pixels of visible space
    * @param scalar optional scaling of cell size
-   * @returns the amount of lines needed to fill the screen once past the edge
-   *          + the difference of its remainder against the interval
+   * @returns the least amount of lines needed to fill the screen
    */
   _measureLineNeed(size: number, scalar?: number): number {
-    const div = Math.ceil(size / (this._calculateCellSize(scalar) + this.line_size));
-    const rem = this.interval - (div % this.interval);
-    return div + rem;
-  };
+    const line = this.line;
+    const cell = this.cell;
+    if ( scalar ) return Math.floor(size / this._calculateCellSize(scalar));
+    return Math.floor(size / (cell.size));
+  }
 
-  _vertical_lines = new Array<Sprite>();
-  _vertical_axes = new Array<Pick<Sprite,"x">>();
-  _vertical_interpolation = new Array<Tween<Sprite>>();
-  _horizontal_lines = new Array<Sprite>();
-  _horizontal_axes = new Array<Pick<Sprite,"y">>();
-  _horizontal_interpolation = new Array<Tween<Sprite>>();
+  /**
+   * A single vertical and horizontal line decide where everything
+   * on screen is placed. There isn't anything fantastical about them.
+   * 
+   * This method, however, is an entitlement of resizing the canvas.
+   * Therefore it will clear this display and all children, redrawing
+   * for the new dimensions.
+   */
+  _createGrid() {
+    for ( const child of this.children ) child.destroy(); // Getting rid of the old
 
-  _generateAssets() {
-    const textures = this._generateTextures();
+    const view = this.view;
+    const zoom = this.zoom;
+    const textures = this.textures;
+
+    const vertical_lines = new ParticleContainer();
+    const horizontal_lines = new ParticleContainer();
+    const cells = new ParticleContainer();
+
+    this.addChild(
+      Sprite.from(textures.background),
+      vertical_lines,
+      horizontal_lines,
+      cells
+    );
+
+    const vertical_need = this._measureLineNeed(view.width, zoom.min);
+    const horizontal_need = this._measureLineNeed(view.height, zoom.min);
+    const cell_need = vertical_need * horizontal_need;
+
+    for (let i = 0; i < vertical_need; i++) {
+      vertical_lines.addChild(Sprite.from(textures.vertical_line)).visible = false;
+    }
+    for (let i = 0; i < horizontal_need; i++) {
+      horizontal_lines.addChild(Sprite.from(textures.horizontal_line)).visible = false;
+    }
+    for (let i = 0; i < cell_need; i++) {
+      cells.addChild(Sprite.from(textures.cell)).visible = false;
+    } console.log(cells.children.findIndex(c => c.visible));
+  }
+
+  _setLines() {
+    const view = this.view;
+    const grid = this.grid;
+    const cell = this.cell;
+    const line = this.line;
+
     
-    // clear this container
-    this.children.forEach((obj) => obj.destroy());
+    const vertical_lines = this.children[1].children as Sprite[];
+    const horizontal_lines = this.children[2].children as Sprite[];
+    const cells = this.children[3].children as Sprite[];
 
-    // new resized background, new line containers
-    this.addChild(Sprite.from(textures.background), new ParticleContainer(), new ParticleContainer());
+    // Distance between line majors
+    const interval = cell.size * line.interval;
+    
+    // Simulated left and top edges of the screen
+    const left = grid.offset.x - view.width/2;
+    const up = grid.offset.y - view.height/2;
 
-    const setupAxis = (
-      texture: Texture,
-      amount: number,
-      axis: "x"|"y",
-      sprites: Sprite[],
-      tweens: Tween<Sprite>[],
-      positions: Array<{[x: string] :number}|{[y: string] :number}>
-    ) => {
+    // x is set to be the first position that a line will be drawn
+    let x = left % cell.size
+            // a negative x is useless, this ensures its positive
+            + Number(left < 0) * cell.size;
 
-      // Resize arrays to the expected amount
-      sprites.length
-        = tweens.length
-          = positions.length
-            = amount;
+    for ( const vline of vertical_lines ) {
+      // If x has surpassed the screen's width
+      if ( x > view.width ) {
+        // Ensure that no other lines are unexpectedly rendering
+        if ( vline.visible ) vline.visible = false;
+        // Since accessing is linear, the first falsey marks the rest as safe
+        else break;
+      };
 
-      for (let i = 0; i < amount; i++) {
-        // Line sprite
-        const line = sprites[i] = Sprite.from(texture);
-
-        // An object with compatible properties for this sprite
-        // to interpolate towards
-        const target = positions[i] = {[axis]: 0};
-
-        // A tween handles getting the line to the target
-        tweens[i] =
-          new Tween(line)
-            // Prevent Tween from stopping automatically
-            .repeat(Infinity)
-            // Instead check if it should stop
-            .onRepeat((line: Sprite, rcount: number, tween: Tween<Sprite>) => {
-              const panning = this.event_info.panning;
-              // If the grid is panning, the destination can change arbitrarily
-              // If the destination hasn't been reached, then move there
-              if ( panning || line[axis] !== target[axis] ) {
-                // Restart forces the onStart callback which sets this tween's
-                // from and to values
-                tween.restart();
-              }
-              else {
-                // Otherwise this tween is done and will be restarted elsewhere
-                tween.stop();
-              }
-          })
-          .onStart((line: Sprite, tween: Tween<Sprite>) => {
-            // When this tween starts, ensure its from is the sprite's current value
-            // and its destination is the property stored in the adjacent array
-            tween.from({[axis]: line[axis]}).to({[axis]: target[axis]}, this.line_catchup);
-          });
-      }
+      // This describes the "real" position of the x value
+      // that line positions and colors are derived from
+      const low_x = x + left;
+      vline.tint = low_x % interval
+                  ? line.minor
+                  : line.major;
+      // On screen placement
+      vline.x = x;
+      vline.visible = true;
+      x += cell.size;
     }
 
-    // Evaluate how many lines are needed to satisfy this display at the minimal scale.
-    const max_vertical_lines = this._measureLineNeed(this.view.width, this.zoom.min);
-    const max_horizontal_lines = this._measureLineNeed(this.view.height, this.zoom.min);
+    let y = up % cell.size
+            + Number(up < 0) * cell.size;
+    for ( const hline of horizontal_lines ) {
+      if ( y > view.height ) {
+        if ( hline.visible ) hline.visible = false;
+        else break;
+      }
+      const low_y = y + up;
+      hline.tint = low_y % interval
+                  ? line.minor
+                  : line.major;
+      hline.y = y;
+      hline.visible = true;
+      y += cell.size;
+    }
+    /**
+     * TODO: Iterating from zero position in both directions placing sprites
+     * at every cell gap
+     * Not doing gap = cell + line, just set cell size and line size, let them overlap.
+     *  Will need to deal with z-index issue eventually
+     * 
+     */
+    
+  }
+  /**
+   * REVISE: Fuck, I hate this.
+   * Idea is to only make two explicit axis --
+   * A vertical and a horizontal axis
+   * 
+   * Reasoning: These two decide where everything else is
+   * Howto: Instead of making a fuck ton of objects, I can just make two
+   *  and instantiate by demand.
+   * 
+   * These two axis will act as the "origin" of the current window
+   *  i.e. when one goes offscreen and appears on the other side, its obvious
+   *  that any cells that would be before or after that origin point will no longer
+   *  be displayed.
+   * 
+   * This also means that cell sizes can be dynamically altered while leaving the grid lines
+   * available at all times
+   * 
+   * The crosshairs listen to the current grid offset and will increment whatever pointer offset
+   * aids in describing which cell was clicked when appropriate.
+   */
+  // _generateAssets() {
+  //   const textures = this._generateTextures();
+    
+  //   // clear this container
+  //   this.children.forEach((obj) => obj.destroy());
 
-    setupAxis( // Set up Y axis
-      textures.vertical_line,
-      max_vertical_lines,
-      "x",
-      this._vertical_lines,
-      this._vertical_interpolation,
-      this._vertical_axes
-    );
-    setupAxis( // Set up X axis
-      textures.horizontal_line,
-      max_horizontal_lines,
-      "y",
-      this._horizontal_lines,
-      this._horizontal_interpolation,
-      this._horizontal_axes
-    );
-  }
-  
-  _emplaceAssets(origin: Point|undefined) {
-    this._emplaceLines(origin);
-    // this._emplaceCells(origin);
-  }
+  //   // new resized background, new line containers
+  //   this.addChild(Sprite.from(textures.background), new ParticleContainer(), new ParticleContainer());
+
+  //   const setupAxis = (
+  //     texture: Texture,
+  //     amount: number,
+  //     axis: "x"|"y",
+  //     sprites: Sprite[],
+  //     tweens: Tween<Sprite>[],
+  //     positions: Array<{[x: string] :number}|{[y: string] :number}>
+  //   ) => {
+
+  //     // Lines will handle their own wrapping logic.
+  //     // const bound = this.grid.bound;
+  //     // Lowerbound[0], Upperbound[1]
+  //     // const lower = bound[axis].lower;
+  //     // const upper = bound[axis].upper;
+
+  //     // Resize arrays to the expected amount
+  //     // sprites.length
+  //     //   = tweens.length
+  //     //     = positions.length
+  //     //       = amount;
+
+  //     for (let i= 0; i < amount; i++) {
+  //       // Line sp rite
+  //       const line = sprites[i] = Sprite.from(texture);
+
+  //       // An object with compatible properties for this sprite
+  //       // to interpolate towards
+  //       const target = positions[i] = {[axis]: 0};
+
+  //       //
+  //       // A tween handles getting the line to the target
+  //       tweens[i] =
+  //         new Tween(line)
+  //           // Prevent Tween from stopping automatically
+  //           .repeat(Infinity)
+  //           // Instead check if it should stop
+  //           .onRepeat((line: Sprite, rcount: number, tween: Tween<Sprite>) => {
+  //             const panning = this.event_info.panning;
+  //             // If the grid is panning, the destination can change arbitrarily
+  //             // If the destination hasn't been reached, then move there
+  //             if ( panning || line[axis] !== target[axis] ) {
+  //               // Restart forces the onStart callback which sets this tween's
+  //               // from and to values
+  //               tween.restart();
+  //             }
+  //             else {
+  //               // Otherwise this tween is done and will be restarted elsewhere
+  //               tween.stop();
+  //             }
+  //         }) // NOTE: Attempting with dynamicTo | NOTE:It worked well
+  //         // .onUpdate((line: Sprite, elapsed: number, tween: Tween<Sprite>) => {
+  //         //   // Past the lower boundary
+  //         //   if ( line[axis] < lower || line[axis] > upper) {
+  //         //     // Move line and target to opposite side
+  //         //     const from = line[axis] =  Math.floor(this._wrap(line[axis], lower, upper));
+  //         //     const to = target[axis] = Math.floor(this._wrap(target[axis], lower, upper));
+  //         //     // Force update destination // TODO COmpare floor to round and in onStart callback
+  //         //     tween.from({[axis]: from}).to({[axis]: to}, 1-elapsed);
+  //         //   }
+  //         // })
+  //         .onUpdate((line: Sprite, elapsed: number, tween: Tween<Sprite>) => {
+  //           // Past the lower boundary
+  //           if ( line[axis] < lower || line[axis] > upper) {
+  //             // Move line and target to opposite side
+  //             const from = line[axis] =  Math.floor(this._wrap(line[axis], lower, upper));
+  //             const to = target[axis] = Math.floor(this._wrap(target[axis], lower, upper));
+  //             // Force update destination // TODO COmpare floor to round and in onStart callback
+  //             tween.from({[axis]: from});
+  //           }
+  //         })
+  //         .onStart((line: Sprite, tween: Tween<Sprite>) => { //TODO debug :)
+  //           // When this tween starts, ensure its from is the sprite's current value
+  //           // and its destination is the property stored in the adjacent array
+  //           const from = line[axis] =  Math.floor(this._wrap(line[axis], lower, upper));
+  //           const to = target[axis] = Math.floor(this._wrap(target[axis], lower, upper));
+  //           tween.from({[axis]: from})
+  //             .dynamicTo({[axis]: to}, this.line_catchup);
+  //         }
+  //         // .onStart((line: Sprite, tween: Tween<Sprite>) => { //TODO debug :)
+  //         //   // When this tween starts, ensure its from is the sprite's current value
+  //         //   // and its destination is the property stored in the adjacent array
+  //         //   const from = line[axis] =  Math.floor(this._wrap(line[axis], lower, upper));
+  //         //   const to = target[axis] = Math.floor(this._wrap(target[axis], lower, upper));
+  //         //   tween.from({[axis]: from}).to({[axis]: to}, this.line_catchup);
+  //         // }
+  //       );
+  //     }
+  //   }
+
+
+
+  //   // Evaluate how many lines are needed to satisfy this display at the minimal scale.
+  //   const max_vertical_lines = this._measureLineNeed(this.view.width, this.zoom.min);
+  //   const max_horizontal_lines = this._measureLineNeed(this.view.height, this.zoom.min);
+
+  //   setupAxis( // Set up Y axis
+  //     textures.vertical_line,
+  //     max_vertical_lines,
+  //     "x",
+  //     this._vertical_lines,
+  //     this._vertical_interpolation,
+  //     this._vertical_axes
+  //   );
+  //   setupAxis( // Set up X axis
+  //     textures.horizontal_line,
+  //     max_horizontal_lines,
+  //     "y",
+  //     this._horizontal_lines,
+  //     this._horizontal_interpolation,
+  //     this._horizontal_axes
+  //   );
+
+  //   const first_vertical = this._vertical_lines[0];
+  //   first_vertical.x = this.view.width/2;
+  //   (this.children[1] as Container).addChild(first_vertical);
+    
+  //   const first_horizontal = this._horizontal_lines[0];
+  //   first_horizontal.y = this.view.height/2;
+  //   (this.children[2] as Container).addChild(first_horizontal);
+  // }
 
   /**
    * Called when lines need to be added, removed, or shifted
@@ -295,224 +470,167 @@ export class Grid extends Container {
    * @param focal the point at which transformations should occur
    *              Defaults to screen center
    */
-  _emplaceLines(focal?: Required<{x:number, y:number}>) {
-    // Making sure that our focal point is valid
-    if (! focal ) {
-      // In the case its an initial placement we'll use the screen center
-      focal = {
-        x: this.view.width/2,
-        y: this.view.height/2
-      };
-    }
+  // _emplaceLines(focal: Required<{x:number, y:number}> = {x: this.view.width/2, y: this.view.height/2}) {
 
-    // Total lines that each axis needs
-    const vertical_line_need = this._measureLineNeed(this.view.width, this.zoom.target);
-    const horizontal_line_need = this._measureLineNeed(this.view.height, this.zoom.target);
 
-    // The distance between each line in this setup
-    const gap = this._calculateCellSize(this.zoom.target) + this.line_size;
+
+  //   // The offscreen boundaries describe when a line should wrap to the opposite side
+
+
     
-    // Store the total area each axis will take up
-    const lateral_range = vertical_line_need * gap;
-    const vertical_range = horizontal_line_need * gap;
 
-    // The offscreen boundaries describe when a line should wrap to the opposite side
-    const lb = this.grid.bound.left = Math.floor((this.view.width - lateral_range) / 2);
-    const rb = this.grid.bound.right = Math.floor((this.view.width + lateral_range) / 2);
-    const ub = this.grid.bound.up = Math.floor((this.view.height- vertical_range) / 2);
-    const db = this.grid.bound.down = Math.floor((this.view.height + vertical_range) / 2);
+  //   const manageContainer = (
+  //     container: Container<Sprite>,
+  //     reservoir: Sprite[],
+  //     targets: Array<{[x:string]:number}|{[y:string]:number}>,
+  //     dimension: number,
+  //     axis: "x"|"y",
+  //     tweens: Array<Tween<Sprite>>
+  //     ): boolean => {
 
-    const manageContainer = (
-      container: Container<Sprite>,
-      reservoir: Sprite[],
-      needed_amount: number,
-      dimension: number,
-      axis: "x"|"y",
-      lower_bound: number,
-      upper_bound: number
-      ): boolean => {
+  //     const children = container.children;
+
+  //     const current_gap = this._calculateCellSize() + this.line_size;
+  //     const desired_gap = this._calculateCellSize(this.zoom.target) + this.line_size;
+
+  //     const current_amount = children.length || 1;
+  //     const desired_amount = this._measureLineNeed(dimension, this.zoom.target) || 1;
+
+  //     // TODO Refactor bounds to be x, y, upper lower
+  //     const current_range = this._measureLineNeed(dimension) * current_gap;
+  //     const desired_range = desired_amount * desired_gap;
       
-      // These are the current lines on screen
-      const children = container.children;
 
-      const current_amount = children.length;
+
+  //     if ( current_amount < desired_amount ) {
+  //       // More lines needed.
+  //       let lowest_line = children[0],
+  //           highest_line = children[0];
+  //       for (let i = 0; i < current_amount; i++) {
+  //         if ( lowest_line[axis] > children[i][axis] ) lowest_line = children[i];
+  //         if ( highest_line[axis] < children[i][axis]) highest_line = children[i];
+  //       }
         
-      // If MORE lines need to be added, the current lines must be organized
-      // so the placement of additional lines doesn't cause visual disruption
-      /**
-       * To do this, I need to sort the lines from the lowerbound to the upperbound
-       */
-      if ( current_amount < needed_amount ) {
 
-        const radixSort = function(arr:number[]) {
-          // First draw, nothing to sort
-          if ( arr.length === 0 ) return;
+  //     }
+  //     else if ( current_amount > desired_amount ) {
+  //       // If REMOVING lines, then the current display must be reorganized such
+  //       // that exiting lines are those that will be moving offscreen
+        
+  //     }
 
-          let max_value: number = arr[0] - lower_bound;
-          for (let i = 1; i < arr.length; i++) {
-            // Normalize to avoid dealing with negative values
-            arr[i] -= lower_bound;
-            if (arr[i] > max_value) max_value = arr[i];
-          }
+  //     // Find the index of the line closest to the focal point
+  //     let index_zero = 0;
+  //     let push_left_from_focal = 0;
+  //     for (let i = 0; i < current_amount; i++) {
+  //       // Distance of the focal point to a line
+  //       const distance = focal[axis] - children[i][axis];
+  //       // Focal point is to the right of the line
+  //       // and the line is the closest to the left
+  //       if ( distance > 0 && distance < current_gap ) {
+  //         index_zero = i;
+  //         push_left_from_focal = distance / this.zoom.target;
+  //         break;
+  //       }
+  //     }
+  //     // REVISE think of a better way to figure this out
+  //     // Need to count the offset of the first major from the zero index of
+  //     // the coming setup
+  //     // let line_major_index_offset = 0;
+  //     // for (let counter = 0; counter < this.interval; counter++) {
+  //     //   const i = this._wrap(index_zero + counter, 0, current_amount);
+  //     //   if ( children[i].tint === this.color.line_major ) {
+  //     //     break;
+  //     //   }
+  //     //   line_major_index_offset--;
+  //     // }
 
-          // Max digits
-          let max_position = Math.floor(max_value).toString().length;
-          let position = 0;
+  //     const old_lb = (dimension - current_range) / 2;
+  //     const old_ub = (dimension + current_range) / 2;
 
-          while ( position < max_position ) {
-            const buckets: number[][] = [
-              [],[],[],[],[],
-              [],[],[],[],[]
-            ];
-            for (let i = 0; i < arr.length; i++) {
-              const digit = Math.floor(arr[i]) / 10**position % 10;
-              buckets[digit].push(arr[i]);
-            }
-            arr.length = 0;
-            arr.concat(...buckets);
+  //     const lb = this.grid.bound[axis].lower = (dimension - desired_range) / 2;
+  //     const ub = this.grid.bound[axis].upper = (dimension + desired_range) / 2;
 
-            position++;
-          }
+  //     // Zooming out
+  //     // REVISE Make it so positioning is based on a scalar of the difference
+  //     // between the focal point and the zero'th index. Floor division of the
+  //     // difference in distance and multiply  by desired gap
+  //     if ( current_gap >= desired_gap ) {
+  //       // Where the furthest left line is placed
+  //       const first_position = (children[index_zero][axis] - old_lb) % current_gap + old_lb;
+  //       // Where the furthest left line is placed next
+  //       const next_position = (children[index_zero][axis] - lb) % desired_gap + lb;
+  //       for ( let counter = 0; counter < desired_amount; counter++ ) {
+  //         // Iteration wrapped
+  //         const i = this._wrap(index_zero + counter, 0, desired_amount);
 
-          for (let i = 0; i < arr.length; i++) {
-            // Undo normalization
-            arr[i] += lower_bound;
-          }
-        }
+  //         // Get the line
+  //         const line = i < children.length
+  //                     ? children[i]
+  //                     : container.addChild(reservoir[children.length]);
+  //         const target = targets[i];
+  //         // Set tint
+  //         // line.tint = (i + line_major_index_offset) % this.interval
+  //         line.tint = i % this.interval
+  //                   ? this.color.line_minor
+  //                   : this.color.line_major;
 
-        // First, a shallow copy of the childrens positions is sorted by ascending
-        const sorted_properties = new Array<number>(current_amount);
-        for (let i = 0; i < current_amount; i++) sorted_properties[i] = children[i][axis];
-        radixSort(sorted_properties);
+  //         // Where this lne "should" be
+  //         const current_position = Math.floor(first_position + counter * current_gap);
+  //         const desired_position = Math.floor(next_position + counter * desired_gap);
+  //         line[axis] = current_position;
+  //         target[axis] = desired_position;
+  //       }
+  //     }
+  //     // TODO Stop all tweens, start all tweens
+  //     for (let i = 0; i < desired_amount; i++) {
+  //       tweens[i].restart();
+  //     }
 
-        // The index of the first line major is used to preserve
-        // the coloring of all visible lines
-        let first_line_major = 0;
-        for (let i = 0; i < this.interval; i++) {
-          if (children[i].tint === this.color.line_major)
-            first_line_major = i;
-            break;
-        }
+  //     return true;
+  //   }
 
-        // Next, the properties of the current children are overwritten 
-        for (let i = 0; i < current_amount; i++) {
-          children[i][axis] = sorted_properties[i];
-          children[i].tint = (i-first_line_major) % this.interval
-                            ? this.color.line_major
-                            : this.color.line_minor;
-        }
-
-        // Need to get focal point, and do positioning of new lines and old lines relative to that
-
-      }
-      else if ( current_amount > needed_amount ) {
-        // If REMOVING lines, then the current display must be reorganized such
-        // that exiting lines are those that will be moving offscreen
-
-      }
-
-      // Predicate callback to find the first line within a radius
-      const nearest = (
-        obj: Pick<Point,"x"|"y">,
-        comparison: Pick<Point,"x"|"y">,
-        property: "x"|"y",
-        search_radius: number
-      ) => Math.abs(obj[property] - comparison[property]) < search_radius
-      return true;
-    }
-    // const current_amount = container.children.length;
-    // let difference;
-    // if ( current_amount < needed_amount ) {
-    //   // Not enough lines
-    //   // Difference is the added array
-    //   difference = reservoir.slice(current_amount, needed_amount);
-    //   container.addChild(...difference);
-    // }
-    // else if ( current_amount > needed_amount ) {
-    //   // Too many lines, remove the excess
-    //   // The difference is the removed array.
-    //   difference = container.removeChildren(needed_amount) as Array<Sprite>;
-    // }
-    // // Since the lines as they appear in the container's children array can be in
-    // // any arbitrary order regardless of their on screen position, the difference
-    // // is the lines that should not be positioned centermost
-    // return container.children as Array<Sprite>;
-    
+  //   // const current_amount = container.children.length;
+  //   // let difference;
+  //   // if ( current_amount < needed_amount ) {
+  //   //   // Not enough lines
+  //   //   // Difference is the added array
+  //   //   difference = reservoir.slice(current_amount, needed_amount);
+  //   //   container.addChild(...difference);
+  //   // }
+  //   // else if ( current_amount > needed_amount ) {
+  //   //   // Too many lines, remove the excess
+  //   //   // The difference is the removed array.
+  //   //   difference = container.removeChildren(needed_amount) as Array<Sprite>;
+  //   // }
+  //   // // Since the lines as they appear in the container's children array can be in
+  //   // // any arbitrary order regardless of their on screen position, the difference
+  //   // // is the lines that should not be positioned centermost
+  //   // return container.children as Array<Sprite>;
     
 
-    //The first line to be modified is decided as the closest line to the focal point on screen.
-    const radius = this._calculateCellSize(this.zoom.actual)/2;
+  //   const vertical_line_container = this.children[1] as Container<Sprite>;
+  //   const horizontal_line_container = this.children[2] as Container<Sprite>;
+  //   manageContainer(
+  //     vertical_line_container,
+  //     this._vertical_lines,
+  //     this._vertical_axes,
+  //     this.width,
+  //     "x",
+  //     this._vertical_interpolation
+  //   );
+  //   manageContainer(
+  //     horizontal_line_container,
+  //     this._horizontal_lines,
+  //     this._horizontal_axes,
+  //     this.height,
+  //     "y",
+  //     this._horizontal_interpolation
+  //   );
 
-    // The transformation of already present lines is dependent on the transformation of the first
-    // line modified. If no lines have been transformed yet, index is set to 0.
-    const v_start = Math.max(
-      manageContainer(vertical_lines, this._vertical_lines, vertical_line_need)
-      .findIndex(line => line.visible && nearest(line, focal!, "x", radius)),
-      0
-    );
-    const h_start = Math.max(
-      manageContainer(horizontal_lines, this._horizontal_lines, horizontal_line_need)
-      .findIndex(line => line.visible && nearest(line, focal!, "y", radius)),
-      0
-    );
-
-
-    // Wrap a value between two numbers, inclusive [e.g wrap(10, 3, 7) == 5]
-    const wrap = (val: number, min: number, max: number): number => val % (max+1-min) + min;
-    let next_x =
-      // The starting position is that of the closest line to the origin
-      vertical_lines.children[v_start].x
-      // Shifted by the difference from the focal point
-      - (vertical_lines.children[v_start].x - focal.x)
-      // scaled by the current target zoom
-      * this.zoom.target
-      // pushed forward by the preceeding boundary edge
-      - lb;
-    // for (let offset = v_start; offset < v_start + vertical_line_need; offset++) {
-    for (let i = 0; i < vertical_line_need; i++) {
-      // The current index is extrapolated by wrapping the offset
-      // const i = wrap(offset, 0, vertical_line_need-1);
-
-      const line = this._vertical_lines[i];
-      // Wrapped between the bounds
-      const destination = this._vertical_axes[i].x = wrap(next_x, lb, rb);
-
-      if (! line.visible ) {
-        line.visible = true;
-        // If the line was just added then its initial position
-        // is set to the nearest offscreen boundary to its next position
-        line.x = Math.round((destination - lb) / lateral_range)
-                ? rb // 1
-                : lb // 0
-      }
-      // Setting the next position for this line
-
-      // A callback inside of the tween will automatically refresh
-      // the destination target and duration
-      this._vertical_interpolation[i].start();
-
-      // The next x position is incremented by the current gap size
-      next_x += gap;
-    }
-    // Same is done for horizontal lines
-    let next_y = horizontal_lines.children[h_start].y
-            - (horizontal_lines.children[h_start].y - focal.y)
-            * this.zoom.target
-            - ub;
-    for (let offset = h_start; offset < h_start + horizontal_line_need; offset++) {
-      const i = wrap(offset, 0, horizontal_line_need-1);
-
-      const line = this._horizontal_lines[i];
-      const destination = this._horizontal_axes[i].y = wrap(next_y, ub, db);
-
-      if (! line.visible ) {
-        line.visible = true;
-        line.y = Math.round((destination - ub) / vertical_range)
-                ? db // 1
-                : ub // 0
-      }
-      this._horizontal_interpolation[i].start();
-      next_y += gap;
-    }
-  }
+  //   new Tween(this.zoom)
+  //     .from({actual: this.zoom.actual})
+  //     .to({target: this.zoom.target})
+  //     .start();
+  // }
 }
