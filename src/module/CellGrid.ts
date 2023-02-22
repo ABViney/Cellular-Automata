@@ -25,7 +25,6 @@ export class Grid extends Container {
   public view;
 
   public textures: TextureDict;
-  public context = new Graphics();
 
   public cell = {
     default_size: 25, // Static value, scaled by zoom to get size
@@ -138,8 +137,6 @@ export class Grid extends Container {
     offset.x += dx;
     offset.y += dy;
 
-    // this.x += dx;
-    // this.y += dy;
     this._setLines();
   }
 
@@ -290,18 +287,6 @@ export class Grid extends Container {
     const vertical_lines = this.children[1].children as Sprite[];
     const horizontal_lines = this.children[2].children as Sprite[];
     // const cells = this.children[3].children as Sprite[];
-    
-    // Simulated left and top edges of the screen
-    // const left = grid.offset.x - view.width/2;
-    // const up = grid.offset.y - view.height/2;
-
-    // User remainder to mark zeroith real positions
-    const v_zero = vertical_lines[0].x = Math.abs(grid.offset.x % view.width);
-    const h_zero = horizontal_lines[0].y = Math.abs(grid.offset.y % view.height);
-
-    const context = this.context;
-    context.clear();
-
 
     function setAxis(
       axis: "x"|"y",
@@ -333,7 +318,6 @@ export class Grid extends Container {
 
       // Iterates all lines only at the minimum scale
       while (i < lines.length) {
-      // console.log('steps from zero = ' +axis + steps_from_zero)
         const target = lines[i++];
 
         // No more lines needed, turn off
