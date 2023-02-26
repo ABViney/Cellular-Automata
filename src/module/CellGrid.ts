@@ -341,110 +341,92 @@ export class Grid extends Container {
     const grid = this.grid;
     const cell = this.cell;
     const line = this.line;
-    // const textures = this.textures;
-    const g = this._g; g.clear();
+    
+    this._calculateCellSize();
+
+    const g = this._g;
+    
+    g.clear();
+    
     g.beginFill(grid.background);
     g.drawRect(0, 0, view.width, view.height);
     g.endFill();
 
-    // const vertical_lines = this.children[1].children as Sprite[];
-    // const horizontal_lines = this.children[2].children as Sprite[];
-    // const cells = this.children[3].children as Sprite[];
+
 
     // NOTE: Refactoring from here
     function setAxis(
-      axis: "x"|"y",
-      edge: number, // pixels
-      lines: Sprite[]
+      axis: "x"|"y"
     ) {
-      
-      // const lineStyle = axis === "x"
-      //                   ? textures.vertical
-      //                   : textures.horizontal;
+
       const dimension = axis === "x"
                         ? "width"
                         : "height";
 
-      const step_between_majors = line.step;
+      // Every n lines should be a line major
+      const steps_between_majors = line.step;
       
-
-
-      // Offset marks the first line offscreen client left
-      // let offset = grid.offset[axis] % cell.size;
-
-        // Major cell size, minor cell size
+      // Variable line thickness is permitted, cell size is static
       const major_cell = line.major.width + cell.size;
       const minor_cell = line.minor.width + cell.size;
 
+      // Steps increment with each line placed to denote what style of line
+      // should be drawn. When divisible by the set value, the major style is
+      // used.
       let steps = 0;
+
+      // Grid offset is a pixel distance from the imaginary origin of the scene.
+      // This offset marks where, in relation to the canvas, a line should be drawn.
       let offset = (function() {
         // Sum of the core
         let pattern_sum = major_cell
-                          + (step_between_majors-1) * minor_cell;
+                          + (steps_between_majors-1) * minor_cell;
         
         // Floored quotient elicits product with sum less than grid offset
         const quotient = Math.floor(grid.offset[axis] / pattern_sum);
         pattern_sum *= quotient;
-        let last_added = 0;
+        let last_added = major_cell;
+
+        // For efficiency's sake, shifting the offset to the first line position
+        // preceedig or at viewport position 0.
         for (; pattern_sum < grid.offset[axis]; steps++) {
-          last_added = steps === 0 ? major_cell : minor_cell;
           pattern_sum += last_added;
         }
+
         // If loop was entered roll back 1
         if ( steps ) {
           steps--;
-          pattern_sum -= last_added;
+          pattern_sum -= steps
+                        ? minor_cell
+                        : major_cell;
         }
+        
         // Difference is first draw position
         return pattern_sum - grid.offset[axis];
       })();
-      
-      while (offset < edge) {
+      // REVISE: Need to mutate drawing order to ensure majors overlap minors
+      while (offset < view[dimension]) {
         let style;
-        if (steps % step_between_majors === 0) {
+        if (steps % steps_between_majors === 0) {
           style = line.major;
         } else {
           style = line.minor;
         }
+        
         g.lineStyle(style);
         if (axis == 'x') {
           g.moveTo(offset, 0).lineTo(offset, view.height);
         } else {
           g.moveTo(0, offset).lineTo(view.width, offset);
         }
+
         offset += cell.size + style.width;
         steps++;
       }
-
-      // let i = 0;
-      // while (i < lines.length) {
-      //   const line = lines[i];
-      //   if (offset > edge + cell.size) {
-      //     if ( line.visible ) {
-      //       line.visible = false;
-      //       i++
-      //       continue;
-      //     } else {
-      //       return;
-      //     }
-      //   }
-      //   // if (axis == 'x' && offset > -10) console.log(line)
-      //   line[axis] = offset;
-      //   if (steps % step_between_majors === 0) {
-      //     line.texture = lineStyle.major;
-      //   } else {
-      //     line.texture = lineStyle.minor;
-      //   }
-      //   offset += cell.size + line.texture[dimension];
-      //   line.visible = true;
-      //   i++
-      //   steps++;
-      // }
-      
     }
 
-    setAxis("x", view.width, []);
-    setAxis("y", view.height, []);
+    setAxis("x");
+    setAxis("y");
   }
   
 }
