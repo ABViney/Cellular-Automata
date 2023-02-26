@@ -3,19 +3,6 @@ import { Easing, Group, Interpolation, Tween } from "tweedle.js";
 import { Cell, CellMap } from "../CellMap";
 // import { Cell, CellMap } from "./CellMap";
 
-interface TextureDict {
-  background: Texture;
-  cell: Texture;
-  vertical: {
-    major: Texture,
-    minor: Texture
-  };
-  horizontal: {
-    major: Texture,
-    minor: Texture
-  };
-};
-
 interface GridInfo {
   background:number;
   offset:Point;
@@ -33,9 +20,6 @@ interface Zoomer {
 
 export class Grid extends Container {
 
-  /** @type {Renderer} */
-  public renderer;
-
   /** @type {Rectangle} */
   public view;
 
@@ -49,8 +33,6 @@ export class Grid extends Container {
   };
 
   public line = {
-    size: 1, // px
-
     step: 5,/** Ratio of minor to major axis lines */
     lag: 10, // ms
 
@@ -99,14 +81,17 @@ export class Grid extends Container {
   constructor(app: Application) {
     super();
 
-    const renderer = this.renderer = app.renderer;
     const view = this.view = app.screen;
     const grid = this.grid;
+
+    // Center origin 0 on screen
     grid.offset.x = -view.width/2;
     grid.offset.y = -view.height/2;
     const zoom = this.zoom;
 
-    this.addChild(this._g);
+    this._graphics = new Graphics();
+
+    this.addChild(this._graphics);
 
     const zoom_smoothing = this._zoom_smoothing = new Group();
     zoom_smoothing.add(
@@ -118,60 +103,42 @@ export class Grid extends Container {
             .to({actual: zoom.target}, zoom.smoothing);
         })
         .onUpdate((zoom:Zoomer, elapsed:number, tween: Tween<Zoomer>) => {
-          this._calculateCellSize();
+          this.cell.size = this.cell.default_size * this.zoom.actual;
           this._setLines();
         })
         .easing(Easing.Exponential.Out)
         .start()
     );
 
-    // zoom_smoothing.add(
-    //   new Tween(offset)
-    //     .onStart((offset: Point, tween: Tween<Point>) => {
-    //       const {x, y} = offset;
-    //       tween.from({x: x, y: y})
-    //         .dynamicTo({x: x-d.x, y: y-d.y}, zoom.smoothing);
-    //     })
-    //     .onUpdate(() => {
-    //       this._setLines()
-    //     })
-    //     .easing(Easing.Exponential.Out)
-    //     .start()
-    // );
-    
-    // Not sure how to tell typescript this is okay
-    // this.textures = this._generateTextures();
-    // this._createGrid();
-
-    this._setLines();
-    
     app.ticker.add((dt) => {
       zoom_smoothing.update(dt, true);
- 
-    })
-    this.on("added", ()=> {
-      
-      setTimeout(() => {
-        
-        
-      }, 4000);
-    })
+    });
 
     this.interactive = true;
     this.cursor = 'pointer';
     this.on('pointerdown', this._onPointerDown);
     this.on('pointerup', this._onPointerUp);
     this.on('wheel', this._onMouseScroll);
+    // TODO: Need onAdded func
+
+    this.on('added', this._onAdded);
+  }
+
+  _onAdded() {
+    this._resetView();
   }
 
   _onPointerDown(e: FederatedPointerEvent) {
     const event_info = this.event_info;
     switch (e.button) {
-      case 2: // Begin pan
+      case 2: // Right Click
         event_info.panning = true;
         event_info.selecting = false;
         this.on('pointermove', this._Pan);
         this.cursor = 'grabbing';
+        break;
+      case 1: // Middle Click
+        this._resetView();
         break;
     }
   }
@@ -185,13 +152,14 @@ export class Grid extends Container {
     this._setLines();
   }
 
+  /** Tweening for zoom changes */
   _zoom_smoothing: Group;
 
   _onMouseScroll(e: FederatedWheelEvent) {
     const zoom = this.zoom;
-    e.client.copyTo(zoom.at);
+    e.client.copyTo(zoom.at); // TODO: grid offset should shift to focus toward
     const zoom_smoothing = this._zoom_smoothing;
-    const direction = Math.sign(e.deltaY) * zoom.min;
+    const direction = Math.sign(e.deltaY) * 0.1;
 
     zoom.target -= direction;
     zoom.target = Math.min(zoom.max, zoom.target);
@@ -200,6 +168,20 @@ export class Grid extends Container {
     const tweens = zoom_smoothing.getAll();
     tweens[0].restart();
     // tweens[1].restart();
+  }
+
+  _resetView() {
+    const zoom = this.zoom;
+    zoom.target = 1;
+    zoom.actual = zoom.min;
+    
+    const zoom_smoothing = this._zoom_smoothing;
+    zoom_smoothing.getAll()[0].restart();
+
+    const {width, height} = this.view;
+    const {offset} = this.grid;
+    offset.x = -width/2;
+    offset.y = -height/2;
   }
 
   _onPointerUp(e: FederatedPointerEvent) {
@@ -216,217 +198,103 @@ export class Grid extends Container {
   update(cell_data: CellMap) {
     
   }
-
-  // _generateTextures() {
-  //   const view = this.view;
-  //   const renderer = this.renderer;
-  //   const grid = this.grid;
-  //   const line = this.line;
-  //   const cell = this.cell;
-
-  //   const rectHelper = (color:number, width:number, height?:number):RenderTexture => {
-  //     const g = new Graphics();
-  //     g.beginFill(color, 1);
-  //     g.drawRect(0, 0, width, height || width);
-  //     g.endFill();
-  //     const texture = renderer.generateTexture(g);
-  //     g.destroy();
-  //     return texture;
-  //   };
-
-  //   const lineHelper = (axis: string, style:ILineStyleOptions):RenderTexture => {
-  //     const g = new Graphics();
-  //     g.lineStyle(style);
-
-  //     if ( axis === "x" ) {
-  //         g.lineTo(0, view.height);
-          
-  //     } else {
-  //       g.lineTo(view.width, 0);
-  //     }
-  //     const texture = renderer.generateTexture(g,{
-  //       multisample: MSAA_QUALITY.HIGH
-  //     });
-  //     g.destroy();
-  //     // texture.defaultAnchor.set(0.5);
-  //     return texture;
-  //   };
-
-
-  //   return this.textures = {
-  //     // Background covers the entire visible screen
-  //     // Also acts as a backboard for pointer events
-  //     background: rectHelper(grid.background, view.width, view.height),
-  //     // Cells size to whatever the cell size is scaled by zoom
-  //     cell: rectHelper(cell.color, 100),
-  //     // Lines are fitted to the screen's dimensions
-  //     // A resizing of the canvas entitles a redrawing of these lines
-  //     vertical: {
-  //       major: lineHelper("x", line.major),
-  //       minor: lineHelper("x", line.minor)
-  //     },
-  //     horizontal: {
-  //       major: lineHelper("y", line.major),
-  //       minor: lineHelper("y", line.minor)
-  //     }
-  //   };
-  // }
   
-  // Get cell size at current scale or at provided scale
-  _calculateCellSize(scalar?: number) {
-    const size = this.cell.default_size * (scalar || this.zoom.actual);
-    if (! scalar ) this.cell.size = size;
-    return size;
-  }
-
-  // /**
-  //  * @param size in pixels of visible space
-  //  * @param scalar optional scaling of cell size
-  //  * @returns the recommended amount of lines needed
-  //  *          to fill the prescribed dimension
-  //  */
-  // _measureLineNeed(size: number, scalar?: number): number {
-  //   const line = this.line;
-  //   const cell = this.cell;
-  //   if ( scalar ) return Math.ceil(size / this._calculateCellSize(scalar));
-  //   return Math.ceil(size / (cell.size));
-  // }
-
-  /**
-   * A single vertical and horizontal line decide where everything
-   * on screen is placed. There isn't anything fantastical about them.
-   * 
-   * This method, however, is an entitlement of resizing the canvas.
-   * Therefore it will clear this display and all children, redrawing
-   * for the new dimensions.
-   */
-  // _createGrid() {
-  //   for ( const child of this.children ) child.destroy(); // Getting rid of the old
-
-  //   const view = this.view;
-  //   const zoom = this.zoom;
-  //   const textures = this.textures;
-  //   const g = this._g =  new Graphics();
-  //   const vertical_lines = new Container();
-  //   const horizontal_lines = new Container();
-  //   // const cells = new ParticleContainer();
-
-  //   this.addChild(
-  //     Sprite.from(textures.background),
-  //     vertical_lines,
-  //     horizontal_lines,
-  //     // cells
-  //     g
-  //   );
-
-  //   const vertical_need = this._measureLineNeed(view.width, zoom.min);
-  //   const horizontal_need = this._measureLineNeed(view.height, zoom.min);
-  //   const cell_need = vertical_need * horizontal_need;
-    
-  //   for (let i = 0; i < vertical_need; i++) {
-  //     vertical_lines.addChild(new Sprite()).visible = false;
-  //   }
-  //   for (let i = 0; i < horizontal_need; i++) {
-  //     horizontal_lines.addChild(new Sprite()).visible = false;
-  //   }
-  //   // for (let i = 0; i < cell_need; i++) {
-  //   //   cells.addChild(Sprite.from(textures.cell)).visible = false;
-  //   // } console.log(cells.children.findIndex(c => c.visible));
-  // }
-
-  _g = new Graphics();
+  private _graphics: Graphics;
 
   _setLines() {
-    const view = this.view;
-    const grid = this.grid;
-    const cell = this.cell;
-    const line = this.line;
-    
-    this._calculateCellSize();
+    const {width, height} = this.view;
+    const {background, offset} = this.grid;
+    const {color, size} = this.cell;
+    const {major, minor, step} = this.line;
 
-    const g = this._g;
-    
-    g.clear();
-    
-    g.beginFill(grid.background);
-    g.drawRect(0, 0, view.width, view.height);
-    g.endFill();
+    const g = this._graphics;
 
+    type GridDrawData = {
+      atlas: number[]; // All line draw positions
+      start: number; // First drawn offset from 0
+    };
 
+    /** Utilility Functions */
 
-    // NOTE: Refactoring from here
-    function setAxis(
-      axis: "x"|"y"
-    ) {
+    /**
+     * This grid originates from an imaginary origin of 0. Since lines have a mutable
+     * thickness and may overlap eachother, and cells have displays dependent on a positional
+     * offset, some information is needed to ensure the right data is being represented.
+     * 
+     * @param offset Distance from grid origin
+     * @param dimension pixel distance to evaluate
+     * @returns location data for the prescribed fields
+     */
+    const generateDrawData = (offset:number, dimension:number):GridDrawData => {
+      const major_cell = major.width + size;
+      const minor_cell = minor.width + size;
 
-      const dimension = axis === "x"
-                        ? "width"
-                        : "height";
-
-      // Every n lines should be a line major
-      const steps_between_majors = line.step;
+      // Sum of the core
+      const pattern_sum = major_cell + minor_cell * (step-1);
+      // Product of sum with quotient elicits value less than or equal to origin
+      const quotient = Math.floor(offset / pattern_sum);
       
-      // Variable line thickness is permitted, cell size is static
-      const major_cell = line.major.width + cell.size;
-      const minor_cell = line.minor.width + cell.size;
+      // Nearest preceeding major
+      let real_position = pattern_sum * quotient;
+      let steps_taken = 0;
+      while (real_position < offset) {
+        real_position += steps_taken++ ? minor_cell : major_cell;
+      }
+      // Backstep if loop was entered
+      if ( steps_taken ) real_position -= --steps_taken ? minor_cell : major_cell;
 
-      // Steps increment with each line placed to denote what style of line
-      // should be drawn. When divisible by the set value, the major style is
-      // used.
-      let steps = 0;
+      const draw_data: GridDrawData = {
+        atlas: [],
+        start: quotient * step + steps_taken
+      }
 
-      // Grid offset is a pixel distance from the imaginary origin of the scene.
-      // This offset marks where, in relation to the canvas, a line should be drawn.
-      let offset = (function() {
-        // Sum of the core
-        let pattern_sum = major_cell
-                          + (steps_between_majors-1) * minor_cell;
-        
-        // Floored quotient elicits product with sum less than grid offset
-        const quotient = Math.floor(grid.offset[axis] / pattern_sum);
-        pattern_sum *= quotient;
-        let last_added = major_cell;
+      // Initialized to the line backing the first visible cell
+      let draw_position = real_position - offset;
 
-        // For efficiency's sake, shifting the offset to the first line position
-        // preceedig or at viewport position 0.
-        for (; pattern_sum < grid.offset[axis]; steps++) {
-          pattern_sum += last_added;
-        }
-
-        // If loop was entered roll back 1
-        if ( steps ) {
-          steps--;
-          pattern_sum -= steps
+      // Stow all drawing positions for this frame
+      const {atlas} = draw_data;
+      while (draw_position < dimension) {
+        atlas.push(draw_position)
+        draw_position += steps_taken++ % step 
                         ? minor_cell
                         : major_cell;
-        }
-        
-        // Difference is first draw position
-        return pattern_sum - grid.offset[axis];
-      })();
-      // REVISE: Need to mutate drawing order to ensure majors overlap minors
-      while (offset < view[dimension]) {
-        let style;
-        if (steps % steps_between_majors === 0) {
-          style = line.major;
-        } else {
-          style = line.minor;
-        }
-        
-        g.lineStyle(style);
-        if (axis == 'x') {
-          g.moveTo(offset, 0).lineTo(offset, view.height);
-        } else {
-          g.moveTo(0, offset).lineTo(view.width, offset);
-        }
-
-        offset += cell.size + style.width;
-        steps++;
       }
+      
+      return draw_data;
+    };
+
+    const wrap = (val:number, min:number, max:number):number => {
+      return (Math.abs(val)-min) % (max-min) + min;
     }
 
-    setAxis("x");
-    setAxis("y");
+    const drawMinors = (draw_data:GridDrawData, drawFunc:Function) => {
+      g.lineStyle(minor);
+      const {atlas, start} = draw_data;
+      for (let i = 0; i < atlas.length; i++) {
+        if ((start + i) % step === 0) continue;
+        drawFunc(atlas[i]);
+      }
+    };
+    const drawMajors = (draw_data:GridDrawData, drawFunc:Function) => {
+      g.lineStyle(major);
+      const {atlas, start} = draw_data;
+      for (let i = wrap(start,0,step); i < atlas.length; i+=step) drawFunc(atlas[i]);
+    };
+
+    const reset = () => g.clear().beginFill(background).drawRect(0,0, width, height).endFill();
+    const drawHorizontal = (offset:number) => g.moveTo(0, offset).lineTo(width, offset);
+    const drawVertical = (offset:number) => g.moveTo(offset, 0).lineTo(offset, height);
+
+    /** End of Utility functions */
+    
+    const vertical_lines = generateDrawData(offset.x, width);
+    const horizontal_lines = generateDrawData(offset.y, height);
+    
+    reset();
+    drawMinors(vertical_lines, drawVertical);
+    drawMinors(horizontal_lines, drawHorizontal);
+    drawMajors(vertical_lines, drawVertical);
+    drawMajors(horizontal_lines, drawHorizontal);
   }
   
 }
