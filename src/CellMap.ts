@@ -1,27 +1,36 @@
 
 
 export type Cell = [number,number];
-export class CellMap extends Map {
+export class CellMap {
   
+  private _map:Map<number, Cell>;
+
   constructor(entries?: readonly Cell[] | null) {
-    // super(entries?.map((cell: Cell) => [this._hash(cell), cell]));
-    super();
+    this._map = new Map<number, Cell>();
     if ( entries ) entries.forEach((cell) => this.set(cell));
   }
-  override delete(value: Cell): boolean {
-    return super.delete(this._hash(value));
+  
+  public delete(value: Cell): boolean {
+    return this._map.delete(this._hash(value));
   }
-  override has(value: Cell): boolean {
-    return super.has(this._hash(value));
+  
+  public has(value: Cell): boolean {
+    return this._map.has(this._hash(value));
   }
-  override set(value: Cell): this {
-    return super.set(this._hash(value), value);
+  
+  public set(value: Cell): this {
+    this._map.set(this._hash(value), value);
+    return this;
+  }
+
+  public values(): Iterable<Cell> {
+    return this._map.values();
   }
   /**
    * @param cell position
    * @returns {number} a probably unique number for this state
    */
-  _hash(cell: Cell) {
+  _hash(cell: Cell):number {
     return ((cell[0] << 32) + cell[1]);
   }
 
