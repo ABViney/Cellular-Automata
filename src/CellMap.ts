@@ -26,6 +26,11 @@ export class CellMap {
   public values(): Iterable<Cell> {
     return this._map.values();
   }
+
+  public clear():void {
+    this._map.clear();
+  }
+  
   /**
    * @param cell position
    * @returns {number} a probably unique number for this state
