@@ -92,7 +92,7 @@ export class CellModel {
    */
   private _toggleCells(cells: Cell[]) {
     for ( const cell of cells ) {
-      if (! this._state.delete(cell) ) this._state.set(cell);
+      this._state.toggle(cell);
     }
   }
 
