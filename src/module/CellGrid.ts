@@ -1,11 +1,15 @@
 import { Application, Container, FederatedPointerEvent, FederatedWheelEvent, Graphics, ILineStyleOptions, Matrix, MSAA_QUALITY, ParticleContainer, Point, Renderer, RenderTexture, Sprite, Texture } from "pixi.js";
 import { Easing, Group, Interpolation, Tween } from "tweedle.js";
 import { Cell, CellMap } from "../CellMap";
-// import { Cell, CellMap } from "./CellMap";
 
 interface GridInfo {
   background:number;
   offset:Point;
+  cells:CellMap;
+  lines:{
+    vertical:GridDrawData,
+    horizontal:GridDrawData
+  };
 }
 
 interface Zoomer {
@@ -13,10 +17,16 @@ interface Zoomer {
   max:number;
   target:number; // What zoom should be
   actual:number; // What zoom is at
-  at:Point, // Last cursor location
+  direction:number; // In or out
+  to:Point, // Last cursor location
+  from:Point, // Push grid offset to/from
   smoothing:number; // ms between actual reaching target
 };
 
+    interface GridDrawData {
+      atlas: number[]; // All line draw positions
+      start: number; // First drawn offset from 0
+    };
 
 export class Grid extends Container {
 
@@ -49,32 +59,38 @@ export class Grid extends Container {
   };
   
   /** Grid info */
-  public grid = {
+  public grid: GridInfo = {
     background: 0x222222,
 
     // Viewing Position
-    offset: new Point()
+    offset: new Point(),
+    cells: new CellMap(),
+    lines: { // Set during draw
+      vertical:{} as GridDrawData,
+      horizontal:{} as GridDrawData
+    }
   };
   
   /** Zoom (scale) directives */
   public zoom: Zoomer = {
-    min: 0.01,
+    min: 0.1,
     max: 5.0,
     target: 1.0,
     actual: 1.0,
 
-    at: new Point(0),
-    smoothing: 100 // ms
+    direction: 0,
+    to: new Point(0),
+    from: new Point(0),
+    smoothing: 50 // ms
   };
 
   /** Event tracking */
   public event_info = {
     selecting: false,
-    current_selection: new Set<Cell>(),
+    current_selection: new Set<number>(),
 
     panning: false,
 
-    zoom_from: {x: 0, y: 0},
     zoom_to: {x: 0, y: 0}
   };
 
@@ -83,14 +99,10 @@ export class Grid extends Container {
 
     const view = this.view = app.screen;
     const grid = this.grid;
-
-    // Center origin 0 on screen
-    grid.offset.x = -view.width/2;
-    grid.offset.y = -view.height/2;
+    grid.cells.set([0,0])
     const zoom = this.zoom;
 
     this._graphics = new Graphics();
-
     this.addChild(this._graphics);
 
     const zoom_smoothing = this._zoom_smoothing = new Group();
@@ -103,6 +115,7 @@ export class Grid extends Container {
             .to({actual: zoom.target}, zoom.smoothing);
         })
         .onUpdate((zoom:Zoomer, elapsed:number, tween: Tween<Zoomer>) => {
+          // Translate grid view to/from mouse position
           this.cell.size = this.cell.default_size * this.zoom.actual;
           this._setLines();
         })
@@ -110,6 +123,8 @@ export class Grid extends Container {
         .start()
     );
 
+    // reset grid pos, hostage drag to 0,0
+    
     app.ticker.add((dt) => {
       zoom_smoothing.update(dt, true);
     });
@@ -131,24 +146,62 @@ export class Grid extends Container {
   _onPointerDown(e: FederatedPointerEvent) {
     const event_info = this.event_info;
     switch (e.button) {
-      case 2: // Right Click
-        event_info.panning = true;
-        event_info.selecting = false;
-        this.on('pointermove', this._Pan);
-        this.cursor = 'grabbing';
+      case 0:
+          if (! event_info.panning ) {
+            event_info.selecting = true;
+            this.on('pointermove', this._paintSelection)
+            this._paintSelection(e);
+
+            this._setLines();
+          }
         break;
       case 1: // Middle Click
         this._resetView();
         break;
+      case 2: // Right Click
+        event_info.panning = true;
+        event_info.selecting = false;
+        this.on('pointermove', this._pan);
+        this.cursor = 'grabbing';
+        break;
     }
   }
 
-  _Pan(e: FederatedPointerEvent) {
-    const offset = this.grid.offset;
+  _paintSelection(e: FederatedPointerEvent) {
+    const {cells} = this.grid;
+    const {selecting, current_selection} = this.event_info;
+
+    // If selecting was turned off without a mouseup, remove handler
+    if (! selecting ) {
+      this.off('pointermove', this._paintSelection);
+      return;
+    }
+    // Get cell coordinate
+    const cursor = e.client;
+    const cell = this._getCell(cursor);
+    if ( cell ) {
+      // Cursor position is valid
+      // Check if cell has been painted already
+      const hash = CellMap.hash(cell);
+      if (! current_selection.has(hash) ) {
+        // Cell hasn't been painted, toggle and remember to not repaint
+        cells.toggle(cell);
+        current_selection.add(hash);
+        this._setLines();
+      }
+    }
+  }
+
+  _pan(e: FederatedPointerEvent) {
+    const {offset} = this.grid;
+    const {to} = this.zoom;
     const dx = e.movement.x;
     const dy = e.movement.y;
     offset.x -= dx;
     offset.y -= dy;
+    to.x -= dx;
+    to.y -= dy;
+    
     this._setLines();
   }
 
@@ -157,13 +210,14 @@ export class Grid extends Container {
 
   _onMouseScroll(e: FederatedWheelEvent) {
     const zoom = this.zoom;
-    e.client.copyTo(zoom.at); // TODO: grid offset should shift to focus toward
-    const zoom_smoothing = this._zoom_smoothing;
-    const direction = Math.sign(e.deltaY) * 0.1;
 
-    zoom.target -= direction;
+    zoom.direction = Math.sign(e.deltaY);
+    const movement = Math.sign(zoom.direction) * 0.1;
+    zoom.target -= movement;
     zoom.target = Math.min(zoom.max, zoom.target);
     zoom.target = Math.max(zoom.min, zoom.target);
+
+    const zoom_smoothing = this._zoom_smoothing;
 
     const tweens = zoom_smoothing.getAll();
     tweens[0].restart();
@@ -180,39 +234,69 @@ export class Grid extends Container {
 
     const {width, height} = this.view;
     const {offset} = this.grid;
-    offset.x = -width/2;
-    offset.y = -height/2;
+    offset.x = 0;
+    offset.y = 0;
   }
 
   _onPointerUp(e: FederatedPointerEvent) {
     const event_info = this.event_info;
     switch (e.button) {
+      case 0:
+        event_info.selecting = false;
+        event_info.current_selection.clear();
+        break;
       case 2:
         event_info.panning = false;
-        this.off('pointermove', this._Pan);
+        this.off('pointermove', this._pan);
         this.cursor = 'pointer';
         break;
     }
   }
 
   update(cell_data: CellMap) {
-    
+  
   }
   
+  _getCell(cursor:Point):Cell|false {
+    const {major, minor, step} = this.line;
+
+    // Line and cell position data
+    const {vertical, horizontal} = this.grid.lines;
+
+    // Find which lines are directly above and behind the cursor
+    let line_x = -1, line_y = -1;
+    while (cursor.x >= vertical.atlas[line_x+1]) line_x++;
+    while (cursor.y >= horizontal.atlas[line_y+1]) line_y++;
+    
+    // Selection is in bounds
+    // Describe cell coordinate
+    const cell:Cell = [
+      vertical.start + line_x,
+      horizontal.start + line_y
+    ];
+
+    // Ensure cursor isn't on a line
+    const valid = (
+      cursor.x > (vertical.atlas[line_x] // Position
+                + (cell[0] % step ? minor.width : major.width))
+      ) && (
+      cursor.y > (horizontal.atlas[line_y]
+                + (cell[1] % step ? minor.width : major.width))
+    );
+
+    return valid && cell;
+  }
+
   private _graphics: Graphics;
 
   _setLines() {
     const {width, height} = this.view;
-    const {background, offset} = this.grid;
+    const {background, offset, cells, lines} = this.grid;
     const {color, size} = this.cell;
     const {major, minor, step} = this.line;
 
     const g = this._graphics;
 
-    type GridDrawData = {
-      atlas: number[]; // All line draw positions
-      start: number; // First drawn offset from 0
-    };
 
     /** Utilility Functions */
 
@@ -280,6 +364,27 @@ export class Grid extends Container {
       const {atlas, start} = draw_data;
       for (let i = wrap(start,0,step); i < atlas.length; i+=step) drawFunc(atlas[i]);
     };
+    const drawCells = (vertical_lines:GridDrawData, Horizontal_lines:GridDrawData) => {
+      g.lineStyle({width: 0});
+      g.beginFill(color);
+      const v_atlas = vertical_lines.atlas,
+            x_start = vertical_lines.start,
+            x_end = vertical_lines.start + vertical_lines.atlas.length,
+            h_atlas = horizontal_lines.atlas,
+            y_start = horizontal_lines.start,
+            y_end = horizontal_lines.start + horizontal_lines.atlas.length;
+      
+      for ( const cell of cells.values() ) {
+        const [x,y] = cell;
+        if ( x_start <= x && x <= x_end
+          && y_start <= y && y <= y_end ) {
+            const draw_x = v_atlas[x - x_start] + (x % step ? minor.width : major.width)-1;
+            const draw_y = h_atlas[y - y_start] + (y % step ? minor.width : major.width)-1;
+            g.drawRect(draw_x, draw_y, size, size);
+          }
+      }
+      g.endFill();
+    }
 
     const reset = () => g.clear().beginFill(background).drawRect(0,0, width, height).endFill();
     const drawHorizontal = (offset:number) => g.moveTo(0, offset).lineTo(width, offset);
@@ -287,14 +392,21 @@ export class Grid extends Container {
 
     /** End of Utility functions */
     
-    const vertical_lines = generateDrawData(offset.x, width);
-    const horizontal_lines = generateDrawData(offset.y, height);
+    // Grid offset denotes the client's top left corner in relation to an imaginary 0.
+    // Since the client's width and height don't affect  where the grid offset is,
+    // its value can be compensated offset half the viewable dimension in order to
+    // center data that exists around that position in the viewport.
+    const vertical_lines = lines.vertical = generateDrawData(offset.x - width/2, width);
+    const horizontal_lines = lines.horizontal = generateDrawData(offset.y - height/2, height);
     
     reset();
     drawMinors(vertical_lines, drawVertical);
     drawMinors(horizontal_lines, drawHorizontal);
     drawMajors(vertical_lines, drawVertical);
     drawMajors(horizontal_lines, drawHorizontal);
+    drawCells(vertical_lines, horizontal_lines);
+
+
   }
   
 }
