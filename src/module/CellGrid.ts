@@ -2,6 +2,14 @@ import { Application, Container, FederatedPointerEvent, FederatedWheelEvent, Gra
 import { Easing, Group, Interpolation, Tween } from "tweedle.js";
 import { Cell, CellMap } from "../CellMap";
 
+/** TODO
+ * Extrapolate offset from draw functions.
+ * Change GridDrawData to define screen center as a line offset
+ * Modify draw function to support these changes.
+ * This will separate grid offset from the draw function, which should
+ * result in zoom being anchored to the screen center instead of
+ * the grid's origin.
+ */
 interface GridInfo {
   background:number;
   offset:Point;
