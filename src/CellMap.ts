@@ -1,6 +1,24 @@
 
 
 export type Cell = [number,number];
+
+export interface System {
+  state: Cell[];
+  old_states: Cell[][];
+  search_pattern: Cell[];
+  persists_at: number[];
+  populates_at: number[];
+  max_history?: number;
+};
+
+export interface Options {
+  system?: System;
+  cells?: Cell[];
+  pattern?: Cell[];
+  persists_at?: number[];
+  populates_at?: number[];
+};
+
 export class CellMap {
   
   private _map:Map<number, Cell>;
