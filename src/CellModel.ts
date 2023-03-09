@@ -1,6 +1,6 @@
 import {Cell, CellMap} from './CellMap'
 
-interface System {
+export interface System {
   state: Cell[];
   old_states: Cell[][];
   search_pattern: Cell[];
@@ -9,7 +9,7 @@ interface System {
   max_history?: number;
 };
 
-interface Options {
+export interface Options {
   system?: System;
   cells?: Cell[];
   pattern?: Cell[];
