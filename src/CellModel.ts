@@ -53,6 +53,9 @@ export class CellModel {
    * @param system 
    */
   private _instantiateFromSystem(system: System) {
+    // Avoid altering the original object
+    system = JSON.parse(JSON.stringify(system));
+    
     this._setState(system.state);
     if ( system.old_states ) {
       if ( system.max_history && system.max_history >= 0 ) this._max_history = system.max_history;
