@@ -1,4 +1,4 @@
-import {Cell, CellMap, Options, System} from './CellMap'
+import {Cell, CellMap, Options, System} from './CellData'
 
 export class CellModel {
   
