@@ -1,6 +1,7 @@
-import {Cell, CellMap, Options, System} from './CellData'
+import { Cell, CellMap } from './CellData'
+import { AutomataOptions, AutomataSystem, DataOperation } from './CellContracts';
 
-export class CellModel {
+export class CellModel implements DataOperation {
   
   /**
    * Current system state
@@ -27,7 +28,7 @@ export class CellModel {
   /**
    * @param data initial system properties
    */
-  constructor(system: System) {
+  constructor(system: AutomataSystem) {
     this._instantiateFromSystem(system);
   }
 
@@ -35,7 +36,7 @@ export class CellModel {
    * Rebuild this system to the passed definition
    * @param system 
    */
-  private _instantiateFromSystem(system: System) {
+  private _instantiateFromSystem(system: AutomataSystem) {
     // Avoid altering the original object
     system = JSON.parse(JSON.stringify(system));
     
@@ -124,7 +125,8 @@ export class CellModel {
 
   private _lastState() {
     this._state.clear();
-    
+    this._toggleCells(this._old_states.pop() || []);
+    return this._cellData();
   }
 
   private _setSearchPattern(search_pattern: Cell[]) {
@@ -149,7 +151,7 @@ export class CellModel {
    * Update system and return the new state.
    * @param options
    */
-  public update(options?: Options) {
+  public update(options?: Partial<AutomataOptions>) {
     if ( options ) {
       if ( options.system ) {
         this._instantiateFromSystem(options.system);
@@ -177,7 +179,7 @@ export class CellModel {
   /**
    * @returns An empty array
    */
-  clear() {
+  public clear() {
     this._updateHistory();
     return this._setState([]);
   }
