@@ -19,9 +19,17 @@ export class CellMap {
     return this._map.has(CellMap.hash(value));
   }
   
+  public get(key: number): Cell|undefined {
+    return this._map.get(key);
+  }
+
   public set(value: Cell): this {
     this._map.set(CellMap.hash(value), value);
     return this;
+  }
+
+  public keys(): Iterable<number> {
+    return this._map.keys();
   }
 
   public values(): Iterable<Cell> {
