@@ -4,8 +4,8 @@ import { Cell } from "./CellData";
  * View -> Controller
  */
 export interface UserRequest {
-  toggle(cell: Cell): boolean; // True => On
-  next(): Cell[];
+  // TODO: Swap System func
+  next(options: AutomataOptions): Cell[];
   prev(): Cell[];
   reset(): Cell[];
 }
@@ -37,9 +37,9 @@ export interface AutomataSystem {
  * Update properties for a system
  */
 export interface AutomataOptions {
-  readonly system: AutomataSystem;
-  readonly cells: Cell[];
-  readonly pattern: Cell[];
-  readonly persists_at: number[];
-  readonly populates_at: number[];
+  system?: AutomataSystem;
+  cells?: Cell[];
+  pattern?: Cell[];
+  persists_at?: number[];
+  populates_at?: number[];
 };
