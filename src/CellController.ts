@@ -25,17 +25,17 @@ export class CellController implements UserRequest {
    */
   private default_system: AutomataSystem = {
     state: [
-              [-1,-1],          //   #
-                      [ 0, 0],  //     #
-      [-2, 1],[-1, 1],[ 0, 1]   // # # #
+              [ 0,-1],          //   #
+                      [ 1, 0],  //     #
+      [-1, 1],[ 0, 1],[ 1, 1]   // # # #
     ],
     old_states: [] as Cell[][],
     search_pattern: [
       [-1,-1],[ 0,-1],[ 1,-1],
-      [-1, 0],[ 0, 0],[ 1, 0],
+      [-1, 0],        [ 1, 0],
       [-1, 1],[ 0, 1],[ 1, 1]
     ],
-    persists_at: [2],
+    persists_at: [2,3],
     populates_at: [3],
     max_history: 25
   };
