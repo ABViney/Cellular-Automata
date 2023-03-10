@@ -1,10 +1,9 @@
-import { Application } from "pixi.js";
-import { Grid } from "./module/CellGrid";
+import { Application, Renderer } from "pixi.js";
+import { AutomataOptions, UserRequest } from "./CellContracts";
+import { Cell, CellMap } from "./CellData";
+import { CellGrid } from "./module/CellGrid";
 
-export class CellView {
-
-  /** @type {Application} */
-  private readonly _app;
+export class CellView extends Application{
 
   private readonly _color = {
     background: 0x222222,
@@ -33,44 +32,104 @@ export class CellView {
     update_text_active: 0x647abe,
   }
 
-  /** Callback for client input */
-  private _post: () => void ;
-
-  /** Drawing is done, awaiting input */
-  private _is_ready = false;
+  private grid: CellGrid;
+  private current_state = new CellMap();
+  private current_changes = new CellMap();
 
   /**
    * 
-   * @param container 
-   * @param callback 
+   * @param parent 
+   * @param controller 
    */
-  constructor(container: HTMLElement, callback: () => void ) {
-    this._app = new Application({
+  constructor(
+    parent: HTMLElement,
+    controls: UserRequest,
+    initial_state: Cell[]
+  ) {
+    super({
       antialias: true,
       autoDensity: true,
-      background: 0x000000,
+      background: 0x000,
       resolution: window.devicePixelRatio || 1.0,
-      resizeTo: container
+      resizeTo: parent
     });
-    container.appendChild(this._app.view as HTMLCanvasElement);
-    this._post = callback;
-  }
+    parent.appendChild(this.view as HTMLCanvasElement)
+          .addEventListener('contextmenu', (e) => e.preventDefault());
 
-  public build(mobile: boolean) {
-    this._is_ready = false;
+    this.requestNext = controls.next;
+    this.requestLast = controls.prev;
+    this.requestClear = controls.reset;
     
-    const screen = {
-      width: this._app.screen.width,
-      height: this._app.screen.height,
-      center: {
-        x: this._app.screen.width/2,
-        y: this._app.screen.height/2
+    for (const cell of initial_state) {
+      this.current_state.set(cell);
+    }
+
+    // Setup CellGrid
+    const grid = this.grid = new CellGrid(
+      this.renderer as Renderer,
+      this.cellSelectHandler
+    );
+    this.stage.addChild(grid);
+
+    grid.update(
+      Array.from(this.current_state.values())
+    );
+    
+    parent.ownerDocument
+    .addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        const options:AutomataOptions = {
+          cells: Array.from(this.current_changes.values())
+        }
+        this.current_changes.clear();
+        this.current_state = new CellMap(this.requestNext(options));
+        this.updateDisplay();
       }
-    };
-    
-    const grid = new Grid(this._app);
+    });
 
-    this._app.stage.addChild(grid);
   }
+  
+  private cellSelectHandler = (cell:Cell): void => {
+    if (! this.current_changes.delete(cell) ) {
+      this.current_changes.set(cell);
+    } console.log(this.current_changes)
+    this.updateDisplay();
+  }
+
+  private updateDisplay() {
+    // Aggregate
+    const draw_data = new Array<Cell>();
+
+    // state NOR changes
+    const painted_cells = new Set(this.current_state.keys());
+    for (const key of this.current_changes.keys()) {
+      if (! painted_cells.delete(key) ) {
+        painted_cells.add(key);
+      }
+    }
+    // Collect result
+    for (const key of painted_cells) {
+      const cell = this.current_state.get(key) || this.current_changes.get(key);
+      if (! cell ) continue;
+      draw_data.push(cell);
+    }
+
+    this.grid.update(draw_data);
+  }
+
+  private requestNext: UserRequest["next"];
+  private requestLast: UserRequest["prev"];
+  private requestClear: UserRequest["reset"];
+
+  private reset() {
+    if ( this.current_changes.size() === 0 ) {
+      this.current_changes.clear();
+    } else {
+      this.current_state = new CellMap(this.requestClear());
+    }
+    this.updateDisplay();
+  }
+
+  
 
 }
