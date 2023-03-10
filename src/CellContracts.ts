@@ -7,7 +7,7 @@ export interface UserRequest {
   toggle(cell: Cell): boolean; // True => On
   next(): Cell[];
   prev(): Cell[];
-  reset(): void;
+  reset(): Cell[];
 }
 
 /**
