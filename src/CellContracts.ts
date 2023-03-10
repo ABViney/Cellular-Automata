@@ -4,7 +4,7 @@ import { Cell } from "./CellData";
  * View -> Controller
  */
 export interface UserRequest {
-  toggle(cell: Cell): void;
+  toggle(cell: Cell): boolean; // True => On
   next(): Cell[];
   prev(): Cell[];
   reset(): void;
@@ -16,7 +16,8 @@ export interface UserRequest {
 export interface DataOperation {
   update(options?: Partial<AutomataOptions>): Cell[];
   undo(): Cell[];
-  clear(): void;
+  clear(): Cell[];
+  statusOf(cell: Cell): boolean;
   toJSON(): string;
 }
 

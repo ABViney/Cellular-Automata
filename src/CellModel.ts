@@ -147,6 +147,10 @@ export class CellModel implements DataOperation {
     });
   }
 
+  public statusOf(cell: Cell): boolean {
+      return this._state.has(cell);
+  }
+
   /**
    * Update system and return the new state.
    * @param options
