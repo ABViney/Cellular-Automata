@@ -32,6 +32,10 @@ export class CellMap {
     this._map.clear();
   }
   
+  public size():number {
+    return this._map.size;
+  }
+
   public toggle(cell:Cell) {
     const key = CellMap.hash(cell);
     if (! this._map.delete(key) ) {
