@@ -1,7 +1,5 @@
 import { CellView } from "./CellView";
+import { CellController } from "./CellController";
 
-
-const container = document.querySelector('#pixi-content') as HTMLElement;
-container.addEventListener('contextmenu', (e) => e.preventDefault());
-const cv = new CellView(container, () => {})
-cv.build(false);
+const parent = document.querySelector('#pixi-content') as HTMLElement;
+const cc = new CellController(parent);
