@@ -1,6 +1,7 @@
 import { Application, Container, FederatedPointerEvent, FederatedWheelEvent, Graphics, ILineStyleOptions, Matrix, MSAA_QUALITY, ParticleContainer, Point, Renderer, RenderTexture, Sprite, Texture } from "pixi.js";
 import { Easing, Group, Interpolation, Tween } from "tweedle.js";
-import { Cell, CellMap } from "../CellMap";
+import { UserRequest } from "../CellContracts";
+import { Cell, CellMap } from "../CellData";
 
 /** TODO
  * Extrapolate offset from draw functions.
@@ -13,7 +14,7 @@ import { Cell, CellMap } from "../CellMap";
 interface GridInfo {
   background:number;
   offset:Point;
-  cells:CellMap;
+  cells:Cell[];
   lines:{
     vertical:GridDrawData,
     horizontal:GridDrawData
@@ -31,12 +32,13 @@ interface Zoomer {
   smoothing:number; // ms between actual reaching target
 };
 
-    interface GridDrawData {
-      atlas: number[]; // All line draw positions
-      start: number; // First drawn offset from 0
-    };
+interface GridDrawData {
+  atlas: number[]; // All line draw positions
+  start: number; // First drawn offset from 0
+};
 
-export class Grid extends Container {
+//TODO extract grid drawing to a superclass, leave this one to manage cells
+export class CellGrid extends Container {
 
   /** @type {Rectangle} */
   public view;
@@ -72,7 +74,7 @@ export class Grid extends Container {
 
     // Viewing Position
     offset: new Point(),
-    cells: new CellMap(),
+    cells: new Array<Cell>(),
     lines: { // Set during draw
       vertical:{} as GridDrawData,
       horizontal:{} as GridDrawData
@@ -102,12 +104,13 @@ export class Grid extends Container {
     zoom_to: {x: 0, y: 0}
   };
 
-  constructor(app: Application) {
+  constructor(renderer: Renderer, onCellSelect: (cell:Cell) => void) {
     super();
 
-    const view = this.view = app.screen;
+    this._cellSelectionHander = onCellSelect;
+
+    const view = this.view = renderer.screen;
     const grid = this.grid;
-    grid.cells.set([0,0])
     const zoom = this.zoom;
 
     this._graphics = new Graphics();
@@ -133,9 +136,9 @@ export class Grid extends Container {
 
     // reset grid pos, hostage drag to 0,0
     
-    app.ticker.add((dt) => {
-      zoom_smoothing.update(dt, true);
-    });
+    // app.ticker.add((dt) => {
+    //   zoom_smoothing.update(dt, true);
+    // });
 
     this.interactive = true;
     this.cursor = 'pointer';
@@ -145,6 +148,12 @@ export class Grid extends Container {
     // TODO: Need onAdded func
 
     this.on('added', this._onAdded);
+  }
+
+  update(cell_data: Cell[]) {
+    this.grid.cells = cell_data;
+    console.log(this.grid.cells)
+    this._setLines();
   }
 
   _onAdded() {
@@ -175,8 +184,9 @@ export class Grid extends Container {
     }
   }
 
-  _paintSelection(e: FederatedPointerEvent) {
-    const {cells} = this.grid;
+  _cellSelectionHander: (cell:Cell) => void;
+
+  _paintSelection(e: FederatedPointerEvent):void {
     const {selecting, current_selection} = this.event_info;
 
     // If selecting was turned off without a mouseup, remove handler
@@ -193,8 +203,8 @@ export class Grid extends Container {
       const hash = CellMap.hash(cell);
       if (! current_selection.has(hash) ) {
         // Cell hasn't been painted, toggle and remember to not repaint
-        cells.toggle(cell);
         current_selection.add(hash);
+        this._cellSelectionHander(cell);
         this._setLines();
       }
     }
@@ -244,6 +254,8 @@ export class Grid extends Container {
     const {offset} = this.grid;
     offset.x = 0;
     offset.y = 0;
+
+    this._setLines();
   }
 
   _onPointerUp(e: FederatedPointerEvent) {
@@ -259,10 +271,6 @@ export class Grid extends Container {
         this.cursor = 'pointer';
         break;
     }
-  }
-
-  update(cell_data: CellMap) {
-  
   }
   
   _getCell(cursor:Point):Cell|false {
