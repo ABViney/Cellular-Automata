@@ -1,7 +1,7 @@
 import { Application, Container, FederatedPointerEvent, FederatedWheelEvent, Graphics, ILineStyleOptions, Matrix, MSAA_QUALITY, ParticleContainer, Point, Renderer, RenderTexture, Sprite, Texture } from "pixi.js";
 import { Easing, Group, Interpolation, Tween } from "tweedle.js";
-import { UserRequest } from "../CellContracts";
-import { Cell, CellMap } from "../CellData";
+import { UserRequest } from "../utils/CellContracts";
+import { Cell, CellMap } from "../utils/CellData";
 
 /** TODO
  * Extrapolate offset from draw functions.
