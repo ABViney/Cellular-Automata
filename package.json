@@ -7,9 +7,9 @@
     "clean": "rimraf dist"
   },
   "dependencies": {
-    "@pixi/layout": "^0.1.1",
-    "@pixi/ui": "^0.5.8",
-    "pixi.js": "^7.1.1",
+    "@pixi/layout": "^0.1.2",
+    "@pixi/ui": "^0.6.2",
+    "pixi.js": "^7.2.0",
     "tweedle.js": "^2.0.1"
   },
   "devDependencies": {
