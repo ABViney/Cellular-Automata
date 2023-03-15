@@ -1,5 +1,5 @@
-import { Cell, CellMap } from './CellData'
-import { AutomataOptions, AutomataSystem, DataOperation } from './CellContracts';
+import { Cell, CellMap } from './utils/CellData'
+import { AutomataOptions, AutomataSystem, DataOperation } from './utils/CellContracts';
 
 export class CellModel implements DataOperation {
   
