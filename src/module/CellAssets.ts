@@ -32,18 +32,13 @@ type AutoButton = {
   auto_button_off:RenderTexture;
   auto_button_on:RenderTexture;
 };
-
-type AssetGroup = PatternCell|RangeButtons|TextInput|TimerSlider|StepButton|AutoButton;
 interface AssetMap {
-  pattern_cell?: PatternCell;
-  range_buttons?: RangeButtons;
-  text_input?: TextInput;
-  timer_slider?: TimerSlider;
-  step_button?: StepButton;
-  auto_button?: AutoButton;
-};
-type RefreshFunctionGroup = {
-  [K in keyof AssetMap]: () => void;
+  pattern_cell: PatternCell;
+  range_buttons: RangeButtons;
+  text_input: TextInput;
+  timer_slider: TimerSlider;
+  step_button: StepButton;
+  auto_button: AutoButton;
 };
 
 export default class AssetManager {
@@ -54,7 +49,7 @@ export default class AssetManager {
   /**
    * All rendered assets this app needs
   */
- private assets: AssetMap = {};
+ private assets: AssetMap;
  private loaded = false;
 
   /**
@@ -63,7 +58,16 @@ export default class AssetManager {
   constructor(renderer: Renderer) {
     this.renderer = renderer;
     this.graphics = new Graphics();
-    this.refresh();
+    
+    this.assets = {
+      pattern_cell: this.newCellTextures(),
+      range_buttons: this.newRangeButtonTextures(),
+      text_input: this.newTextInputTextures(),
+      timer_slider: this.newTimerSliderTextures(),
+      step_button: this.newStepTextures(),
+      auto_button: this.newAutoTextures()
+    };
+
   }
 
   /**
@@ -72,26 +76,12 @@ export default class AssetManager {
   public isLoaded():boolean {
     return this.loaded;
   }
-
-  /**
-   * Redraw functions are aggregated in a later function
-   */
-
-  // Aggregate
-  private refreshFunctions:RefreshFunctionGroup = {
-    pattern_cell: this.refreshPatternCells,
-    range_buttons: this.refreshRangeButtons,
-    text_input: this.refreshTextInput,
-    timer_slider: this.refreshSlider,
-    step_button: this.refreshStepButton,
-    auto_button: this.refreshAutoButton
-  };
   
   /**
    * Getter
    */
-  public get(asset_type: keyof AssetMap):AssetGroup {
-    return this.assets[asset_type]!;
+  public get<K extends keyof AssetMap>(asset_type: K):AssetMap[K] {
+    return this.assets[asset_type];
   }
 
   /**
@@ -102,10 +92,14 @@ export default class AssetManager {
   public refresh(target?:keyof AssetMap) {
     this.loaded = false;
 
-    if ( target ) this.refreshFunctions[target]!();
-    else 
-      for (const func of Object.values(this.refreshFunctions))
-        func();
+    const all = !target;
+
+    if ( all || target === 'pattern_cell' ) this.assets.pattern_cell = this.newCellTextures();
+    if ( all || target === 'range_buttons' ) this.assets.range_buttons = this.newRangeButtonTextures();
+    if ( all || target === 'text_input' ) this.assets.text_input = this.newTextInputTextures();
+    if ( all || target === 'timer_slider' ) this.assets.timer_slider = this.newTimerSliderTextures();
+    if ( all || target === 'step_button' ) this.assets.step_button = this.newStepTextures();
+    if ( all || target === 'auto_button' ) this.assets.auto_button = this.newAutoTextures();
 
     this.loaded = true;
   }
@@ -113,7 +107,7 @@ export default class AssetManager {
   /**
    * Private
    */
-  private refreshPatternCells() {
+  private newCellTextures() {
     const on_color = palette.grid.cell;
     const center_off_color = palette.user_menu.center_cell_off;
     const neighbor_off_color = palette.user_menu.neighbor_cell_off;
@@ -131,13 +125,13 @@ export default class AssetManager {
     graphics.clear().beginFill(neighbor_off_color).drawRect(0,0,size,size).endFill();
     const neighbor_cell_off = renderer.generateTexture(graphics);
 
-    assets.pattern_cell = {center_cell_off, center_cell_on, neighbor_cell_off, neighbor_cell_on};
+    return {center_cell_off, center_cell_on, neighbor_cell_off, neighbor_cell_on};
   }
-  private refreshRangeButtons() {
+  private newRangeButtonTextures() {
     const {range_button, range_decal} = palette.user_menu;
     const size = 100; // debug
     
-    const {assets, graphics, renderer} = this;
+    const {graphics, renderer} = this;
     
     graphics.clear().beginFill(range_button).drawRect(0,0,size,size).endFill();
     const range_button_bg = renderer.generateTexture(graphics);
@@ -148,14 +142,14 @@ export default class AssetManager {
     graphics.clear().beginFill(range_decal).drawCircle(0,0,size*0.3).endFill(); // TODO:Replace with actual design
     const range_button_down_decal = renderer.generateTexture(graphics);
 
-    assets.range_buttons = {range_button_bg, range_button_down_decal, range_button_up_decal};
+    return {range_button_bg, range_button_down_decal, range_button_up_decal};
   }
-  private refreshTextInput() {
+  private newTextInputTextures() {
     const {text_background, text_border_active, text_border_inactive} = palette.user_menu;
     const border = 10; // debug -- border size
     const [width,height] = [300,70]; // debug
     
-    const {assets, graphics, renderer} = this;
+    const {graphics, renderer} = this;
 
     graphics.clear()
       .beginFill(text_border_inactive).drawRect(0,0,width,height).endFill()
@@ -166,13 +160,13 @@ export default class AssetManager {
       .beginFill(text_background).drawRect(border,border,width-border,height-border).endFill();
     const text_input_active = renderer.generateTexture(graphics);
 
-    assets.text_input = {text_input_active, text_input_inactive};
+    return {text_input_active, text_input_inactive};
   }
-  private refreshSlider() {
+  private newTimerSliderTextures() {
     const {slider_fill, slider_empty} = palette.user_menu;
     const slider_thumb_color = palette.user_menu.slider_thumb; // Whoops, conflicting naming paradigm
     
-    const {assets, graphics, renderer} = this;
+    const {graphics, renderer} = this;
 
     graphics.clear().beginFill(slider_empty).drawRect(0,0,10,100).endFill();
     const slider_bg = renderer.generateTexture(graphics);
@@ -181,32 +175,32 @@ export default class AssetManager {
     graphics.clear().beginFill(slider_thumb_color).drawRect(0,0,10,100).endFill();
     const slider_thumb = renderer.generateTexture(graphics);
     
-    assets.timer_slider = {slider_bg, slider_fg, slider_thumb};
+    return {slider_bg, slider_fg, slider_thumb};
   }
-  private refreshStepButton() {
+  private newStepTextures() {
     const {step_button_active, step_button_inactive} = palette.user_menu;
     const [width,height] = [200,100]; // debug
 
-    const {assets, graphics, renderer} = this;
+    const {graphics, renderer} = this;
     // TODO write label text onto texture
     graphics.clear().beginFill(step_button_inactive).drawRect(0,0,width,height).endFill();
     const step_button_default = renderer.generateTexture(graphics);
     graphics.clear().beginFill(step_button_active).drawRect(0,0,width,height).endFill();
     const step_button_pressed = renderer.generateTexture(graphics);
 
-    assets.step_button = {step_button_default, step_button_pressed};
+    return {step_button_default, step_button_pressed};
   }
-  private refreshAutoButton() {
+  private newAutoTextures() {
     const {auto_button_active, auto_button_inactive} = palette.user_menu;
     const [width,height] = [200,100]; // debug
     
-    const {assets, graphics, renderer} = this;
+    const {graphics, renderer} = this;
     //TODO write label text onto texture
     graphics.clear().beginFill(auto_button_active).drawRect(0,0,width,height).endFill();
     const auto_button_on = renderer.generateTexture(graphics);
     graphics.clear().beginFill(auto_button_inactive).drawRect(0,0,width,height).endFill();
     const auto_button_off = renderer.generateTexture(graphics);
 
-    assets.auto_button = {auto_button_off, auto_button_on};
+    return {auto_button_off, auto_button_on};
   }
 }
