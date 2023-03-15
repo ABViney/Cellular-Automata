@@ -1,7 +1,7 @@
 import { CellModel } from "./CellModel";
 import { CellView } from "./CellView";
-import { Cell, CellMap } from "./CellData";
-import { DataOperation, UserRequest, AutomataOptions, AutomataSystem } from "./CellContracts";
+import { Cell, CellMap } from "./utils/CellData";
+import { DataOperation, UserRequest, AutomataOptions, AutomataSystem } from "./utils/CellContracts";
 
 export class CellController implements UserRequest {
 
