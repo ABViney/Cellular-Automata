@@ -1,4 +1,4 @@
-import { Graphics, Renderer, RenderTexture } from "pixi.js";
+import { Graphics, IRenderer, RenderTexture } from "pixi.js";
 import palette from "../CellColorPallette";
 
 /**
@@ -43,7 +43,7 @@ interface AssetMap {
 
 export default class AssetManager {
 
-  private renderer: Renderer;
+  private renderer: IRenderer;
   private graphics: Graphics;
   
   /**
@@ -55,7 +55,7 @@ export default class AssetManager {
   /**
    * Instantiated with a rendering context.
    */
-  constructor(renderer: Renderer) {
+  constructor(renderer: IRenderer) {
     this.renderer = renderer;
     this.graphics = new Graphics();
     
@@ -133,13 +133,13 @@ export default class AssetManager {
     
     const {graphics, renderer} = this;
     
-    graphics.clear().beginFill(range_button).drawRect(0,0,size,size).endFill();
+    graphics.clear().beginFill(range_button).drawRoundedRect(0,0,size,size, 20).endFill();
     const range_button_bg = renderer.generateTexture(graphics);
 
-    graphics.clear().beginFill(range_decal).drawCircle(0,0,size*0.9).endFill(); // TODO:Replace with actual design
+    graphics.clear().beginFill(range_decal).drawCircle(0,0,size/2*0.7).endFill(); // TODO:Replace with actual design
     const range_button_up_decal = renderer.generateTexture(graphics);
 
-    graphics.clear().beginFill(range_decal).drawCircle(0,0,size*0.3).endFill(); // TODO:Replace with actual design
+    graphics.clear().beginFill(range_decal).drawCircle(0,0,size/2*0.3).endFill(); // TODO:Replace with actual design
     const range_button_down_decal = renderer.generateTexture(graphics);
 
     return {range_button_bg, range_button_down_decal, range_button_up_decal};
