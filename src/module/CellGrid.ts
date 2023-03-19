@@ -116,23 +116,23 @@ export class CellGrid extends Container {
     this._graphics = new Graphics();
     this.addChild(this._graphics);
 
-    const zoom_smoothing = this._zoom_smoothing = new Group();
-    zoom_smoothing.add(
+    // const zoom_smoothing = this._zoom_smoothing = new Group();
+    // zoom_smoothing.add(
       // Controls the rate at which zoom.actual becomes zoom.target
       // This modifies the current cell size.
-      new Tween(zoom)
-        .onStart((zoom:Zoomer, tween: Tween<Zoomer>) => {
-          tween.from({actual: zoom.actual})
-            .to({actual: zoom.target}, zoom.smoothing);
-        })
-        .onUpdate((zoom:Zoomer, elapsed:number, tween: Tween<Zoomer>) => {
-          // Translate grid view to/from mouse position
-          this.cell.size = this.cell.default_size * this.zoom.actual;
-          this._setLines();
-        })
-        .easing(Easing.Exponential.Out)
-        .start()
-    );
+    //   new Tween(zoom)
+    //     .onStart((zoom:Zoomer, tween: Tween<Zoomer>) => {
+    //       tween.from({actual: zoom.actual})
+    //         .to({actual: zoom.target}, zoom.smoothing);
+    //     })
+    //     .onUpdate((zoom:Zoomer, elapsed:number, tween: Tween<Zoomer>) => {
+    //       // Translate grid view to/from mouse position
+    //       this.cell.size = this.cell.default_size * this.zoom.actual;
+    //       this._setLines();
+    //     })
+    //     .easing(Easing.Exponential.Out)
+    //     .start()
+    // );
 
     // reset grid pos, hostage drag to 0,0
     
@@ -224,7 +224,7 @@ export class CellGrid extends Container {
   }
 
   /** Tweening for zoom changes */
-  _zoom_smoothing: Group;
+  // _zoom_smoothing: Group;
 
   _onMouseScroll(e: FederatedWheelEvent) {
     const zoom = this.zoom;
@@ -234,11 +234,12 @@ export class CellGrid extends Container {
     zoom.target -= movement;
     zoom.target = Math.min(zoom.max, zoom.target);
     zoom.target = Math.max(zoom.min, zoom.target);
+    zoom.actual = zoom.target;
 
-    const zoom_smoothing = this._zoom_smoothing;
+    // const zoom_smoothing = this._zoom_smoothing;
 
-    const tweens = zoom_smoothing.getAll();
-    tweens[0].restart();
+    // const tweens = zoom_smoothing.getAll();
+    // tweens[0].restart();
     // tweens[1].restart();
   }
 
@@ -247,8 +248,8 @@ export class CellGrid extends Container {
     zoom.target = 1;
     zoom.actual = zoom.min;
     
-    const zoom_smoothing = this._zoom_smoothing;
-    zoom_smoothing.getAll()[0].restart();
+    // const zoom_smoothing = this._zoom_smoothing;
+    // zoom_smoothing.getAll()[0].restart();
 
     const {width, height} = this.view;
     const {offset} = this.grid;
