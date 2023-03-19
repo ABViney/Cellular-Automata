@@ -26,12 +26,13 @@
  *  "@pixi/ui": 0.5.8 --> 0.6.2
  *  "pixi.js": 7.1.1 --> 7.2.0
  */
-import { CheckBox, FancyButton } from "@pixi/ui";
-import { Content, ContentList, Layout, LayoutOptions } from "@pixi/layout";
-import { Container, Graphics, Sprite } from "pixi.js";
+import { CheckBox, FancyButton, Input, Slider } from "@pixi/ui";
+import { Content } from "@pixi/layout";
+import { Container, RenderTexture, Sprite, Texture } from "pixi.js"
 import AssetManager from "./CellAssets";
 
 type NeighborhoodContent = "pattern_controller"|"range_up"|"range_down";
+type UpdateControllerContent = "step_button"|"auto_button"|"timer_slider";
 
 export class NeighborhoodController {
   private asset_man: AssetManager;
@@ -66,7 +67,7 @@ export class NeighborhoodController {
     else if ( content === 'range_down' ) {
       return this.range_down;
     }
-    return {};
+    return "Content not found";
   }
 
   /**
@@ -183,5 +184,99 @@ export class NeighborhoodController {
       }
     }
     return pattern;
+  }
+}
+
+export class RuleController {
+
+  private asset_man: AssetManager;
+
+  private input_active: RenderTexture;
+  private input_inactive: RenderTexture;
+
+  private input: Input;
+
+  constructor(asset_manager: AssetManager) {
+    this.asset_man = asset_manager;
+
+    const input_textures = asset_manager.get('text_input');
+    this.input_active = input_textures.text_input_active;
+    this.input_inactive = input_textures.text_input_inactive;
+
+    this.input = new Input({
+      align: 'left',
+      bg: new Sprite(asset_manager.get('text_input').text_input_inactive),
+      textStyle: {
+        fill: 0xffffff,
+      },
+      padding: 20
+    })
+  }
+
+  public getContent() {
+    return this.input;
+  }
+
+  public getInput() {
+    return this.input.value;
+  }
+}
+
+export class UpdateController {
+  private asset_man: AssetManager;
+
+  private step_button: FancyButton;
+  private auto_button: FancyButton;
+  private timing_container = new Container();
+  private timing_slider: Slider;
+
+  constructor(asset_manager: AssetManager) {
+    this.asset_man = asset_manager;
+
+    const step_textures = asset_manager.get('step_button');
+    this.step_button = new FancyButton({
+      defaultView: new Sprite(step_textures.step_button_default),
+      pressedView: new Sprite(step_textures.step_button_pressed),
+      // disabledView: need one of them
+      text: "Step" // temp
+    });
+
+    const auto_textures = asset_manager.get('auto_button');
+    let auto_enabled_texture = auto_textures.auto_button_on;
+    this.auto_button = new FancyButton({
+      defaultView: new Sprite(auto_textures.auto_button_off),
+      // pressedView: new Sprite(auto_textures.auto_button_off),
+      text: 'Auto',
+    });
+    this.auto_button.onPress.connect(() => {
+      
+    })
+
+
+    const slider_textures = asset_manager.get('timer_slider');
+    this.timing_slider = new Slider({
+      bg: new Sprite(slider_textures.slider_bg),
+      fill: new Sprite(slider_textures.slider_fg),
+      slider: new Sprite(slider_textures.slider_thumb),
+      min: 1,
+      max: 5,
+      value: 2
+    });
+    this.timing_slider.angle = 270;
+    this.timing_slider.y += this.timing_slider.width;
+    this.timing_container.addChild(this.timing_slider);
+  }
+
+  public getContent(content: UpdateControllerContent):Content {
+    if ( content === 'step_button' ) {
+      return this.step_button;
+    }
+    if ( content === 'auto_button' ) {
+      return this.auto_button;
+    }
+    if ( content === 'timer_slider' ) {
+      return this.timing_container;
+    }
+    return {};
   }
 }
