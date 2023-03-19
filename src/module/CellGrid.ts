@@ -1,4 +1,4 @@
-import { Application, Container, FederatedPointerEvent, FederatedWheelEvent, Graphics, ILineStyleOptions, Matrix, MSAA_QUALITY, ParticleContainer, Point, Renderer, RenderTexture, Sprite, Texture } from "pixi.js";
+import { Application, Container, FederatedPointerEvent, FederatedWheelEvent, Graphics, ILineStyleOptions, IRenderer, Matrix, MSAA_QUALITY, ParticleContainer, Point, Renderer, RenderTexture, Sprite, Texture } from "pixi.js";
 import { Easing, Group, Interpolation, Tween } from "tweedle.js";
 import { UserRequest } from "../utils/CellContracts";
 import { Cell, CellMap } from "../utils/CellData";
@@ -104,7 +104,7 @@ export class CellGrid extends Container {
     zoom_to: {x: 0, y: 0}
   };
 
-  constructor(renderer: Renderer, onCellSelect: (cell:Cell) => void) {
+  constructor(renderer: IRenderer, onCellSelect: (cell:Cell) => void) {
     super();
 
     this._cellSelectionHander = onCellSelect;
