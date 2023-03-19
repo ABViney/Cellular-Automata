@@ -1,40 +1,20 @@
 import { Application, Renderer } from "pixi.js";
-import { AutomataOptions, UserRequest } from "./CellContracts";
-import { Cell, CellMap } from "./CellData";
+import AssetManager from "./module/CellAssets";
+import { AutomataOptions, UserRequest } from "./utils/CellContracts";
+import { Cell, CellMap } from "./utils/CellData";
 import { CellGrid } from "./module/CellGrid";
+// import { CellUI } from "./module/CellUI";
+import { CellUI } from "./module/CellUI";
 
-export class CellView extends Application{
+export class CellView extends Application {
 
-  private readonly _color = {
-    background: 0x222222,
-    line_major: 0xffffff,
-    line_minor: 0x888888,
-    cell: 0xffff00,
-
-    frame: 0x2f404f,
-    pattern_container: 0x1e1e1e,
-    center_cell: 0xffda32,
-    neighbor_cell: 0x3b4040,
-    neighbor_cell_active: 0xeaeaea,
-    range_button: 0x646464, // temp
-    range_decal: 0xeaeaea,
-    range_decal_active: 0x4eeaff,
-    label_text: 0xeaeaea,
-    label_text_error: 0xff6347,
-    input_text: 0x647abe,
-    input_background: 0x222222,
-    input_border: 0xeaeaea,
-    slider: 0x222222,
-    thumb: 0xeaeaea,
-    update_button: 0xffda32,
-    update_button_active: 0xffe983,
-    update_text: 0x8f8f8f,
-    update_text_active: 0x647abe,
-  }
+  private asset_man: AssetManager;
 
   private grid: CellGrid;
-  private current_state = new CellMap();
-  private current_changes = new CellMap();
+  private current_state: CellMap;
+  private current_changes: CellMap;
+
+  private ui: CellUI;
 
   /**
    * 
@@ -53,16 +33,22 @@ export class CellView extends Application{
       resolution: window.devicePixelRatio || 1.0,
       resizeTo: parent
     });
+
+    // Prevent context menu on document container
     parent.appendChild(this.view as HTMLCanvasElement)
           .addEventListener('contextmenu', (e) => e.preventDefault());
+    
+    // Building application textures
+    this.asset_man = new AssetManager(this.renderer as Renderer);
 
+    // User controls
     this.requestNext = controls.next;
     this.requestLast = controls.prev;
     this.requestClear = controls.reset;
     
-    for (const cell of initial_state) {
-      this.current_state.set(cell);
-    }
+    // Grid display data
+    this.current_state = new CellMap(initial_state);
+    this.current_changes = new CellMap();
 
     // Setup CellGrid
     const grid = this.grid = new CellGrid(
@@ -70,11 +56,18 @@ export class CellView extends Application{
       this.cellSelectHandler
     );
     this.stage.addChild(grid);
-
     grid.update(
       Array.from(this.current_state.values())
     );
-    
+
+    // Setup UI
+    const ui = this.ui = new CellUI(
+      this.renderer
+    );
+    this.stage.addChild(ui);
+    ui.resize(this.view.width, this.view.height)
+
+
     parent.ownerDocument
     .addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === ' ') {
@@ -86,13 +79,12 @@ export class CellView extends Application{
         this.updateDisplay();
       }
     });
-
   }
   
   private cellSelectHandler = (cell:Cell): void => {
     if (! this.current_changes.delete(cell) ) {
       this.current_changes.set(cell);
-    } console.log(this.current_changes)
+    }
     this.updateDisplay();
   }
 
