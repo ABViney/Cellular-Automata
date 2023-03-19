@@ -144,7 +144,7 @@ export default class AssetManager {
 
     return {range_button_bg, range_button_down_decal, range_button_up_decal};
   }
-  private newTextInputTextures() {
+  private newTextInputTextures() { // REVISE: Simplify, too choppy looking
     const {text_background, text_border_active, text_border_inactive} = palette.user_menu;
     const border = 10; // debug -- border size
     const [width,height] = [300,70]; // debug
@@ -152,12 +152,12 @@ export default class AssetManager {
     const {graphics, renderer} = this;
 
     graphics.clear()
-      .beginFill(text_border_inactive).drawRect(0,0,width,height).endFill()
-      .beginFill(text_background).drawRect(border,border,width-border,height-border).endFill();
+      .beginFill(text_border_inactive).drawRoundedRect(0,0,width,height,50).endFill()
+      .beginFill(text_background).drawRoundedRect(border,border,width-2*border,height-2*border,50).endFill();
     const text_input_inactive = renderer.generateTexture(graphics);
     graphics.clear()
-      .beginFill(text_border_active).drawRect(0,0,width,height).endFill()
-      .beginFill(text_background).drawRect(border,border,width-border,height-border).endFill();
+      .beginFill(text_border_active).drawRoundedRect(0,0,width,height,50).endFill()
+      .beginFill(text_background).drawRoundedRect(border,border,width-2*border,height-2*border,50).endFill();
     const text_input_active = renderer.generateTexture(graphics);
 
     return {text_input_active, text_input_inactive};
@@ -168,11 +168,11 @@ export default class AssetManager {
     
     const {graphics, renderer} = this;
 
-    graphics.clear().beginFill(slider_empty).drawRect(0,0,10,100).endFill();
+    graphics.clear().beginFill(slider_empty).drawRect(0,0,100,10).endFill();
     const slider_bg = renderer.generateTexture(graphics);
-    graphics.clear().beginFill(slider_fill).drawRect(0,0,10,100).endFill();
+    graphics.clear().beginFill(slider_fill).drawRect(0,0,100,10).endFill();
     const slider_fg = renderer.generateTexture(graphics);
-    graphics.clear().beginFill(slider_thumb_color).drawRect(0,0,10,100).endFill();
+    graphics.clear().beginFill(slider_thumb_color).drawRect(0,0,10,20).endFill();
     const slider_thumb = renderer.generateTexture(graphics);
     
     return {slider_bg, slider_fg, slider_thumb};
