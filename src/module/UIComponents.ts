@@ -30,6 +30,7 @@ import { CheckBox, FancyButton, Input, Slider } from "@pixi/ui";
 import { Content } from "@pixi/layout";
 import { Container, RenderTexture, Sprite, Texture } from "pixi.js"
 import AssetManager from "./CellAssets";
+import runtime_palette from "../CellColorPallette";
 
 type NeighborhoodContent = "pattern_controller"|"range_up"|"range_down";
 type UpdateControllerContent = "step_button"|"auto_button"|"timer_slider";
@@ -205,34 +206,57 @@ export class RuleController {
 
   private asset_man: AssetManager;
 
-  private input_active: RenderTexture;
-  private input_inactive: RenderTexture;
-
-  private input: Input;
+  private input_container = new Container();
+  private values = new Array<number>();
 
   constructor(asset_manager: AssetManager) {
     this.asset_man = asset_manager;
+    this.build();
+  }
 
-    const input_textures = asset_manager.get('text_input');
-    this.input_active = input_textures.text_input_active;
-    this.input_inactive = input_textures.text_input_inactive;
+  public build() {
+    const {asset_man, input_container} = this;
 
-    this.input = new Input({
+    input_container.removeChildren
+    const {text_input_active, text_input_inactive} = asset_man.get('text_input');
+    // Source says I can't change this yet.
+
+    const input_sprite = new Sprite(text_input_active);
+
+    const input = new Input({
       align: 'left',
-      bg: new Sprite(asset_manager.get('text_input').text_input_inactive),
+      bg: input_sprite,
       textStyle: {
-        fill: 0xffffff,
+        fill: runtime_palette.user_menu.text_active,
       },
       padding: 20
-    })
+    });
+
+    input.onChange.connect(() => {
+      const raw_string = input.value;
+      const raw_array = raw_string.split(',');
+      const values = new Array<number>();
+      let valid = true;
+      for (const parseable of raw_array) {
+        try {
+          const num = Number(parseable.trim());
+          values.push(num);
+        } catch(e) {
+          valid = false;
+          break;
+        }
+      }
+      if ( valid ) this.values = values;
+    });
+    input_container.addChild(input);
   }
 
   public getContent() {
-    return this.input;
+    return this.input_container;
   }
 
   public getInput() {
-    return this.input.value;
+    return this.values;
   }
 }
 
