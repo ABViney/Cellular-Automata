@@ -47,6 +47,8 @@ export class NeighborhoodController {
   private root = 3;
   private pattern_cells: Array<CheckBox[]> = [];
 
+  private pattern: Array<Boolean> = [];
+
   constructor(asset_manager:AssetManager) {
     this.asset_man = asset_manager;
     this.build();
@@ -159,6 +161,13 @@ export class NeighborhoodController {
 
   private buildDisplayCallback?: () => void;
 
+  /**
+   * When this display is rebuilt (texture redraw or pattern change) it changes the
+   * size of the capturing container. This may cause this container to escape its emplacement
+   * in the layout, so an invocation outside this class is required to ensure it is fixed
+   * as it happens.
+   * @param func callback to a layout resize method
+   */
   public onBuildDisplay(func: () => void) {
     this.buildDisplayCallback = func;
   }
@@ -171,19 +180,24 @@ export class NeighborhoodController {
     this.buildDisplay();
   }
 
-  public getPattern(): Boolean[] {
-    const {root, max_root, pattern_cells} = this;
-    const center = (max_root-1) / 2;
-    const radius = (root-1)/2;
-    const start = center - radius;
-    const end = center + radius;
-    const pattern = [];
-    for (let row = start; row <= end; row++) {
-      for (let col = start; col <= end; col++) {
-        pattern.push(pattern_cells[row][col].checked);
-      }
+  /**
+   * Return true if the pattern in the UI differs from the recorded pattern.
+   * @returns true if modified
+   */
+  public get modifiedSinceLastRead() {
+    const {pattern_controller, pattern} = this;
+    if ( pattern_controller.children.length !== pattern.length ) return true;
+    const current_pattern = pattern_controller.children.map((checkbox) => (checkbox as CheckBox).checked);
+    for (let i = 0; i < pattern.length; i++) {
+      if (current_pattern[i] !== pattern[i]) return true;
     }
-    return pattern;
+    return false;
+  }
+
+  public getPattern(): Boolean[] {
+    const {pattern_controller, pattern} = this;
+    const new_pattern = pattern_controller.children.map((checkbox) => (checkbox as CheckBox).checked);
+    return this.pattern = new_pattern;
   }
 }
 
