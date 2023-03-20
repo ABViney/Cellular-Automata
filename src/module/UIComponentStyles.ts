@@ -94,17 +94,27 @@ const timer_controller: LayoutStyles = {
     position: 'center',
     width: '100%'
   },
-  direction_controller: {
+  direction_block: {
+    display: 'block',
     height: '100%',
     width: '70%'
   },
+  direction_controller: {
+    display: 'block',
+    maxHeight: '100%',
+    maxWidth: '100%',
+    overflow: 'hidden',
+    position: 'center'
+  },
   step_block: {
-    maxHeight: '50%',
-    maxWidth: '100%'
+    padding: 20,
+    position: 'leftCenter',
+    maxWidth: '50%',
   },
   auto_block: {
-    maxHeight: '50%',
-    maxWidth: '100%'
+    padding: 20,
+    position: 'bottomRight',
+    maxWidth: '30%',
   },
   timing_block: {
     display: 'block',

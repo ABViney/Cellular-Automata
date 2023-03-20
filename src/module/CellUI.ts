@@ -160,23 +160,27 @@ export class CellUI extends Container {
               content: {
                 update_block: {
                   content: {
-                    direction_controller: {
+                    direction_block: {
                       content: {
-                        step_block: {
-                          content: update_controller.getContent('step_button')
-                        },
-                        auto_block: {
-                          content: update_controller.getContent('auto_button')
+                        direction_controller: {
+                          content: {
+                            step_block: {
+                              content: update_controller.getContent('step_button')
+                            },
+                            auto_block: {
+                              content: update_controller.getContent('auto_button')
+                            }
+                          }
                         }
                       }
                     },
-                    timing_block: {
-                      content: {
-                        timing_container: {
-                          content: update_controller.getContent('timer_slider')
+                      timing_block: {
+                        content: {
+                          timing_container: {
+                            content: update_controller.getContent('timer_slider')
+                          }
                         }
                       }
-                    }
                   }
                 }
               }
