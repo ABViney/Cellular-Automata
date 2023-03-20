@@ -239,58 +239,101 @@ export class RuleController {
 export class UpdateController {
   private asset_man: AssetManager;
 
-  private step_button: FancyButton;
-  private auto_button: FancyButton;
+  private step_container = new Container();
+  private auto_container = new Container();
   private timing_container = new Container();
-  private timing_slider: Slider;
+
+  private auto_enabled = false;
+  // TPS = Ticks per Second
+  private min_tps = 0.5;
+  private max_tps = 5;
+  private tps = 2;
 
   constructor(asset_manager: AssetManager) {
     this.asset_man = asset_manager;
+    this.build();
+  }
 
-    const step_textures = asset_manager.get('step_button');
-    this.step_button = new FancyButton({
+  public build() {
+    this.buildStepButton();
+    this.buildAutoButton();
+    this.buildTimerSlider();
+  }
+
+  private buildStepButton() {
+    const {asset_man, step_container} = this;
+    step_container.removeChildren().forEach((button) => button.destroy());
+
+    const step_textures = asset_man.get('step_button');
+    const step_button = new FancyButton({
       defaultView: new Sprite(step_textures.step_button_default),
       pressedView: new Sprite(step_textures.step_button_pressed),
       // disabledView: need one of them
       text: "Step" // temp
     });
+    // Add callback
+    step_container.addChild(step_button);
+  }
 
-    const auto_textures = asset_manager.get('auto_button');
-    let auto_enabled_texture = auto_textures.auto_button_on;
-    this.auto_button = new FancyButton({
-      defaultView: new Sprite(auto_textures.auto_button_off),
+  private buildAutoButton() {
+    const {asset_man, auto_container} = this;
+    auto_container.removeChildren().forEach((button) => button.destroy());
+
+    const {auto_button_on, auto_button_off} = asset_man.get('auto_button');
+    // TODO: Deign new textures, turn this into a checkbox
+    const auto_sprite = new Sprite(auto_button_off)
+    const auto_button = new FancyButton({
+      defaultView: auto_sprite,
       // pressedView: new Sprite(auto_textures.auto_button_off),
       text: 'Auto',
     });
-    this.auto_button.onPress.connect(() => {
-      
-    })
-
-
-    const slider_textures = asset_manager.get('timer_slider');
-    this.timing_slider = new Slider({
-      bg: new Sprite(slider_textures.slider_bg),
-      fill: new Sprite(slider_textures.slider_fg),
-      slider: new Sprite(slider_textures.slider_thumb),
-      min: 1,
-      max: 5,
-      value: 2
+    auto_button.onPress.connect(() => {
+      const on = this.auto_enabled = !this.auto_enabled;
+      auto_sprite.texture = on ? auto_button_on : auto_button_off;
     });
-    this.timing_slider.angle = 270;
-    this.timing_slider.y += this.timing_slider.width;
-    this.timing_container.addChild(this.timing_slider);
+    auto_container.addChild(auto_button);
+  }
+    
+  private buildTimerSlider() {
+    const {asset_man, timing_container, min_tps, max_tps, tps} = this;
+    timing_container.removeChildren().forEach((slider) => slider.destroy());
+
+    const {slider_bg, slider_fg, slider_thumb} = asset_man.get('timer_slider');
+    const timer_slider = new Slider({
+      bg: new Sprite(slider_bg),
+      fill: new Sprite(slider_fg),
+      slider: new Sprite(slider_thumb),
+      min: min_tps,
+      max: max_tps,
+      value: tps
+    });
+    timer_slider.onChange.connect(() => {
+      this.tps = timer_slider.value;
+    })
+    // Slider only build horizontally, currently. This makes it appear vertical.
+    timer_slider.angle = 270;
+    timer_slider.y += timer_slider.width;
+    this.timing_container.addChild(timer_slider);
   }
 
   public getContent(content: UpdateControllerContent):Content {
     if ( content === 'step_button' ) {
-      return this.step_button;
+      return this.step_container;
     }
     if ( content === 'auto_button' ) {
-      return this.auto_button;
+      return this.auto_container;
     }
     if ( content === 'timer_slider' ) {
       return this.timing_container;
     }
     return {};
+  }
+
+  public get autoEnabled() {
+    return this.auto_enabled;
+  }
+
+  public get timingRatio() {
+    return this.tps;
   }
 }
