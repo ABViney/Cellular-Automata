@@ -1,4 +1,41 @@
-const default_palette = {
+type CellColorPallette = {
+  grid: {
+    background: number,
+    line_major: number,
+    line_minor: number,
+    cell: number
+  },
+  user_menu: {
+    frame: number,
+    neighborhood_controller: number,
+    center_cell_off:number,
+    neighbor_cell_off:number,
+    range_button: number,
+    range_decal: number,
+
+    text_inactive: number,
+    text_active: number,
+    text_background: number,
+    text_border_inactive: number,
+    text_border_active: number, 
+
+    slider_fill: number,
+    slider_empty: number,
+    slider_thumb: number,
+
+    auto_button_inactive: number,
+    auto_button_active: number,
+    auto_button_text_inactive: number,
+    auto_button_text_active: number,
+
+    step_button_inactive: number,
+    step_button_active: number,
+    step_button_text_inactive: number,
+    step_button_text_active: number
+  }
+};
+
+const default_palette:CellColorPallette = {
   grid: {
     background: 0x222222,
     line_major: 0xffffff,
@@ -35,5 +72,5 @@ const default_palette = {
   }
 };
 
-const runtime_palette = JSON.parse(JSON.stringify(default_palette));
+const runtime_palette:CellColorPallette = JSON.parse(JSON.stringify(default_palette));
 export default runtime_palette;
