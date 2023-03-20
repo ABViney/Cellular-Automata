@@ -140,7 +140,8 @@ export class CellGrid extends Container {
     //   zoom_smoothing.update(dt, true);
     // });
 
-    this.interactive = true;
+    // this.interactive = true;
+    this.eventMode = 'auto';
     this.cursor = 'pointer';
     this.on('pointerdown', this._onPointerDown);
     this.on('pointerup', this._onPointerUp);
