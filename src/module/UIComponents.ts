@@ -43,7 +43,7 @@ export class NeighborhoodController {
   private range_up = new Container();
   private range_down = new Container();
 
-  private maxRoot = 9; // Max cells { 81 }
+  private max_root = 9; // Max cells { 81 }
   private root = 3;
   private pattern_cells: Array<CheckBox[]> = [];
 
@@ -74,14 +74,14 @@ export class NeighborhoodController {
    * An initial build 
    */
   private buildPatternCells() {
-    const {maxRoot, pattern_cells} = this;
+    const {max_root, pattern_cells} = this;
 
     const {center_cell_off, center_cell_on, neighbor_cell_off, neighbor_cell_on} = this.asset_man.get('pattern_cell');
-    const center = (maxRoot-1)/2;
+    const center = (max_root-1)/2;
 
-    for (let row = 0; row < maxRoot; row++) {
+    for (let row = 0; row < max_root; row++) {
       pattern_cells.push([]);
-      for (let col = 0; col < maxRoot; col++) {
+      for (let col = 0; col < max_root; col++) {
         const new_cell = new CheckBox({
           style: {
             checked: new Sprite(neighbor_cell_on),
@@ -116,7 +116,7 @@ export class NeighborhoodController {
     // If the root is changed, the pattern_container is remodeled
     range_up.onPress.connect(() => {
       this.root += 2;
-      if (this.root > this.maxRoot) this.root = this.maxRoot;
+      if (this.root > this.max_root) this.root = this.max_root;
       else this.buildDisplay();
     });
     range_down.onPress.connect(() => {
@@ -132,8 +132,8 @@ export class NeighborhoodController {
   }
 
   private buildDisplay() {
-    const {root, maxRoot, pattern_cells, pattern_controller} = this;
-    const center = (maxRoot-1) / 2;
+    const {root, max_root, pattern_cells, pattern_controller} = this;
+    const center = (max_root-1) / 2;
     const radius = (root-1)/2;
 
     pattern_controller.removeChildren();
@@ -172,8 +172,8 @@ export class NeighborhoodController {
   }
 
   public getPattern(): Boolean[] {
-    const {root, maxRoot, pattern_cells} = this;
-    const center = (maxRoot-1) / 2;
+    const {root, max_root, pattern_cells} = this;
+    const center = (max_root-1) / 2;
     const radius = (root-1)/2;
     const start = center - radius;
     const end = center + radius;
