@@ -70,11 +70,11 @@ const rule_controller: LayoutStyles = {
     width: '100%'
   },
   label_container: {
-    color: palette.user_menu.text_active,
     height: '100%',
     width: '25%'
   },
   label: {
+    color: palette.user_menu.text_active,
     height: '100%',
     fontSize: 16,
     position: 'center'
