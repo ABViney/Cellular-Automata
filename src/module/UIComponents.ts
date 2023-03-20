@@ -229,7 +229,7 @@ export class RuleController {
       textStyle: {
         fill: runtime_palette.user_menu.text_active,
       },
-      padding: 20
+      padding: {left: 20}
     });
 
     input.onChange.connect(() => {

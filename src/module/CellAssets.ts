@@ -146,8 +146,8 @@ export default class AssetManager {
   }
   private newTextInputTextures() { // REVISE: Simplify, too choppy looking
     const {text_background, text_border_active, text_border_inactive} = palette.user_menu;
-    const border = 10; // debug -- border size
-    const [width,height] = [300,70]; // debug
+    const border = 2; // debug -- border size
+    const [width,height] = [300,50]; // debug
     
     const {graphics, renderer} = this;
 
