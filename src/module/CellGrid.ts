@@ -141,7 +141,7 @@ export class CellGrid extends Container {
     // });
 
     // this.interactive = true;
-    this.eventMode = 'auto';
+    this.eventMode = 'static';
     this.cursor = 'pointer';
     this.on('pointerdown', this._onPointerDown);
     this.on('pointerup', this._onPointerUp);
